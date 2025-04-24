@@ -1,7 +1,7 @@
 from pymongo import MongoClient
 from pymongo.mongo_client import MongoClient
 from pymongo.server_api import ServerApi
-import AppConfig
+from AppConfig import AppConfig
 import time
 import os
 # from pubSub import PubSub
@@ -11,6 +11,7 @@ class mongoDb:
 
     def __init__(self):
     
+        
         if AppConfig().getEnvironment() == 'cloudprod':
             uri = os.getenv('MONGO_URI_ACCOUNTING')
             

@@ -1,2 +1,3 @@
-# machine-report
- quality control
+# 
+
+A simple Flask server template with MongoDB integration.
