@@ -13,108 +13,97 @@ from matplotlib import pyplot as plt
 import concurrent.futures
 from utils import *
 
-class OCR(BaseModel):
-    id: str = Field(default_factory=lambda: generateRandomString(), description="ID")
-    image_path: str = Field(..., description="Image path")
+class OCR(Image):
+    status: str = Field(default="start", description="status (in string)")
 
-def get_image_paths(input_path: str):
-    if os.path.isdir(input_path):
-        return [
-            os.path.join(input_path, f)
-            for f in os.listdir(input_path)
-            if f.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.tiff', '.webp'))
-        ]
-    else: 
-        return [input_path]
+    def run_ocr(self) -> dict:
+        image = self.load_image()
+        if image is None:
+            raise ValueError(f'Failed to load image from: {self.path}')
 
-def is_url(path: str) -> bool:
-    parsed = urlparse(path)
-    return parsed.scheme in ("http", "https")
-    
-def load_image(input_path: str):
-    if is_url(input_path):
-        response = requests.get(input_path)
-        image_np = np.asarray(bytearray(response.content), dtype=np.uint8)
-        return cv2.imdecode(image_np, cv2.IMREAD_COLOR)
-    else:
-        return cv2.imread(input_path)
-    
-def run_ocr(image_input, font_path='C:/Windows/Fonts/arial.ttf', show=True, save_json=True, json_path='ocr_output.json'):
-    image = load_image(image_input)
-    if image is None:
-        raise ValueError(f"Failed to load image from: {image_input}")
+        ocr = PaddleOCR(use_angle_cls=True, lang='en', debug=False, show_log=False)
+        return ocr.ocr(image, cls=True)
 
-    ocr = PaddleOCR(use_angle_cls=True, lang='en', debug=False, show_log=False)
-    return ocr.ocr(image, cls=True)
+if __name__ == '__main__':
+    test = OCR(path="test1.png")
+    print(str(test.run_ocr()))
 
-    # import postprocessing
-    # ocr_data = postprocessing.group_text_lines(results=results)
-    # full_text = "\n".join(" ".join(w['text'] for w in line['words']) for line in ocr_data)
+# def run_ocr(image_input, font_path='C:/Windows/Fonts/arial.ttf', show=True, save_json=True, json_path='ocr_output.json'):
+#     image = load_image(image_input)
+#     if image is None:
+#         raise ValueError(f"Failed to load image from: {image_input}")
 
-    # ocr_result = postprocessing.ocr_results_to_text(full_text)
-    # print(full_text)
+#     ocr = PaddleOCR(use_angle_cls=True, lang='en', debug=False, show_log=False)
+#     return ocr.ocr(image, cls=True)
 
-    # import targets
-    # target = targets.MACHINE_REPORT
+#     # import postprocessing
+#     # ocr_data = postprocessing.group_text_lines(results=results)
+#     # full_text = "\n".join(" ".join(w['text'] for w in line['words']) for line in ocr_data)
 
-    # keyword_values = postprocessing.extract_text_value(ocr_data, targets=target)
+#     # ocr_result = postprocessing.ocr_results_to_text(full_text)
+#     # print(full_text)
 
-    # ocr_data = group_text_lines(results=results)
+#     # import targets
+#     # target = targets.MACHINE_REPORT
 
-    # # # Extract keyword values (targeted data only)
-    # keyword_values = extract_keyword_values(ocr_data)
+#     # keyword_values = postprocessing.extract_text_value(ocr_data, targets=target)
 
-    # import machinereport
-    # data = machinereport.parse_machine_report(results)
+#     # ocr_data = group_text_lines(results=results)
+
+#     # # # Extract keyword values (targeted data only)
+#     # keyword_values = extract_keyword_values(ocr_data)
+
+#     # import machinereport
+#     # data = machinereport.parse_machine_report(results)
          
-    # if save_json:
-    #     combined = {
-    #         "data": data
-    #     }
-    #     with open(json_path, 'w', encoding='utf-8') as f:
-    #         json.dump(combined, f, ensure_ascii=False, indent=2)
-    #     print(f"✅ OCR results (targeted data) saved to {json_path}")
+#     # if save_json:
+#     #     combined = {
+#     #         "data": data
+#     #     }
+#     #     with open(json_path, 'w', encoding='utf-8') as f:
+#     #         json.dump(combined, f, ensure_ascii=False, indent=2)
+#     #     print(f"✅ OCR results (targeted data) saved to {json_path}")
 
-    # boxes = [line[0] for line in results[0]]
-    # txts = [line[1][0] for line in results[0]]
-    # scores = [line[1][1] for line in results[0]]
-    # image_with_boxes = draw_ocr(image, boxes, txts, scores, font_path=font_path)
+#     # boxes = [line[0] for line in results[0]]
+#     # txts = [line[1][0] for line in results[0]]
+#     # scores = [line[1][1] for line in results[0]]
+#     # image_with_boxes = draw_ocr(image, boxes, txts, scores, font_path=font_path)
     
-    # if show:
-    #     plt.imshow(cv2.cvtColor(image_with_boxes, cv2.COLOR_BGR2RGB))
-    #     plt.axis('off')
-    #     plt.show()
+#     # if show:
+#     #     plt.imshow(cv2.cvtColor(image_with_boxes, cv2.COLOR_BGR2RGB))
+#     #     plt.axis('off')
+#     #     plt.show()
 
-    # img_name = os.path.splitext(os.path.basename(image_input))[0]
-    # return {
-    #     "name": img_name,
-    #     "data": data,
-    #     "preview": image_with_boxes  # keep the drawn image in memory
-    # }
+#     # img_name = os.path.splitext(os.path.basename(image_input))[0]
+#     # return {
+#     #     "name": img_name,
+#     #     "data": data,
+#     #     "preview": image_with_boxes  # keep the drawn image in memory
+#     # }
 
-def process_batched_images_to_ocr(image_paths, font_path, save_json=True, json_dir='test'):
-    os.makedirs(json_dir, exist_ok=True)
-    all_results = {}
+# def process_batched_images_to_ocr(image_paths, font_path, save_json=True, json_dir='test'):
+#     os.makedirs(json_dir, exist_ok=True)
+#     all_results = {}
 
-    previews = []    
-    with concurrent.futures.ThreadPoolExecutor() as executor:
-        futures = []
-        for idx, image_path in enumerate(image_paths):
-            filename = os.path.basename(image_path)
-            extracted_name, _ = os.path.splitext(filename)
+#     previews = []    
+#     with concurrent.futures.ThreadPoolExecutor() as executor:
+#         futures = []
+#         for idx, image_path in enumerate(image_paths):
+#             filename = os.path.basename(image_path)
+#             extracted_name, _ = os.path.splitext(filename)
 
-            json_path = os.path.join(json_dir, f"{extracted_name}.json")
-            futures.append(executor.submit(run_ocr,
-                image_input=image_path,
-                font_path=font_path,
-                save_json=save_json,
-                json_path=json_path,
-                show=False            # ← disable all GUI calls in worker threads
-            ))
+#             json_path = os.path.join(json_dir, f"{extracted_name}.json")
+#             futures.append(executor.submit(run_ocr,
+#                 image_input=image_path,
+#                 font_path=font_path,
+#                 save_json=save_json,
+#                 json_path=json_path,
+#                 show=False            # ← disable all GUI calls in worker threads
+#             ))
 
-        for future in concurrent.futures.as_completed(futures):
-            result = future.result()
-            all_results.update({result["name"]: result["data"]})
-            previews.append(result["preview"])
+#         for future in concurrent.futures.as_completed(futures):
+#             result = future.result()
+#             all_results.update({result["name"]: result["data"]})
+#             previews.append(result["preview"])
 
-    return all_results
+#     return all_results

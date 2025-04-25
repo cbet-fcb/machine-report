@@ -46,11 +46,58 @@ class TestModel(BaseModel):
         pass
 
 class Image(BaseModel):
-    id: str = Field(default=lambda: generateRandomString(), alias_by="_id", description="id")
-    url: str = Field(default=None, description="URL of image")
-    pass
+    id: str = Field(default=lambda: generateRandomString(), alias="_id", description="id")
+    path: str = Field(default=None, description="URL of image")
+
+    def get_image_paths(self) -> list:
+        import os
+        if os.path.isdir(self.path):
+            return [
+                os.path.join(self.path, f)
+                for f in os.listdir(self.path)
+                if f.lower().endswith((
+                    '.png', '.jpg', '.jpeg', 
+                    '.bmp', '.tiff', '.webp' # Add formats if need be
+                ))
+            ]
+        else:
+            return [self.path]
+        
+    def is_base64_encoding(self) -> bool:
+        return self.path.startswith("data:image/")
+    
+    def is_url(self) -> bool:
+        from urllib.parse import urlparse
+        parsed = urlparse(self.path)
+        return parsed.scheme in ("http", "https")
+    
+    def load_image(self) -> any:
+        import requests
+        import numpy as np
+        import cv2
+        import base64
+        import re
+
+        if self.is_url():
+            response = requests.get(self.path)
+            image_np = np.asarray(bytearray(response.content), dtype=np.uint8)
+            return cv2.imdecode(image_np, cv2.IMREAD_COLOR)
+
+        elif self.is_base64_encoding():
+            # Extract base64 string from the Data URL
+            base64_str = re.sub('^data:image/.+;base64,', '', self.path)
+            image_data = base64.b64decode(base64_str)
+            image_np = np.frombuffer(image_data, np.uint8)
+            return cv2.imdecode(image_np, cv2.IMREAD_COLOR)
+
+        else:
+            return cv2.imread(self.path)
 
 if __name__ == '__main__':
+    image = Image(path="test1.png")
+
+    data = image.load_image()
+    
     pass
 # class User(BaseModel):
 #     id: Optional[str] = Field(None, alias='_id')

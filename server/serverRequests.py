@@ -19,7 +19,7 @@ if __name__ == "__main__":
     def stripBeforeSubstring(text: str, substring: str):
         return text[i := text.find(substring) if i != -1 else 0 : ]
 
-    text = "abcdef"
+    text = "abcdef" 
     sr.testModel(a=stripBeforeSubstring(text,"a") + "\n", 
                  b=stripBeforeSubstring(text,"b") + "\n", 
                  c=stripBeforeSubstring(text,"c") + "\n",
