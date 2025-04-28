@@ -14,15 +14,38 @@ import concurrent.futures
 from utils import *
 
 class OCR(Image):
-    status: str = Field(default="start", description="status (in string)")
-
     def run_ocr(self) -> dict:
         image = self.load_image()
         if image is None:
             raise ValueError(f'Failed to load image from: {self.path}')
 
         ocr = PaddleOCR(use_angle_cls=True, lang='en', debug=False, show_log=False)
-        return ocr.ocr(image, cls=True)
+        ocr_res = ocr.ocr(image, cls=True)
+        processed_text = self.process_ocr_output(ocr_res)
+        return {"text": processed_text}
+    def process_ocr_output(self, ocr_result: list) -> str:
+        """
+        Process the raw OCR output to prepare text for NLP tasks.
+        - Extract text
+        - Clean up unwanted characters
+        - Combine the text into a single string
+        """
+        extracted_text = []
+
+        # Loop through each line in the OCR result
+        for line in ocr_result:
+            for word_info in line:
+                text = word_info[1][0]  # Extracting the text from the tuple (coordinates, (text, confidence))
+
+                # Ensure text is a string before appending it
+                if isinstance(text, str):
+                    extracted_text.append(text)
+                else:
+                    # If text is not a string, convert it to a string or handle it accordingly
+                    extracted_text.append(str(text))
+
+        # Join the text into a single string, separated by spaces
+        return " ".join(extracted_text)
 
 if __name__ == '__main__':
     test = OCR(path="test1.png")
