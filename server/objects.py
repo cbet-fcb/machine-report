@@ -69,6 +69,7 @@ class Image(BaseModel):
             image_np = np.asarray(bytearray(response.content), dtype=np.uint8)
             return cv2.imdecode(image_np, cv2.IMREAD_COLOR)
 
+        #TODO: Implement working base64 encoded image
         elif self.is_base64_encoding():
             # Extract base64 string from the Data URL
             base64_str = re.sub('^data:image/.+;base64,', '', self.path)
@@ -78,6 +79,12 @@ class Image(BaseModel):
 
         else:
             return cv2.imread(self.path)
+
+class Text(BaseModel):
+    text: str = Field(default=None, description="Text")
+
+    def get_text(self):
+        return self.text
 
 if __name__ == '__main__':
     image = Image(path="test1.png")
