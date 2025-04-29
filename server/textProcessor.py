@@ -65,3 +65,14 @@ class UnitExtractor:
 
     def _normalize_token(self, token: str) -> str:
         return re.sub(r'[^\w/]', '', token.lower())
+    
+class TextProcessor:
+    def __init__(self):
+        self.unit_extractor = UnitExtractor()
+
+    def normalize_text(self, nlp_output: dict) -> dict:
+        tokens = nlp_output.get('tokens', [])
+        units_info = self.unit_extractor.extract_units(tokens)
+        
+        nlp_output['units_info'] = units_info
+        return nlp_output

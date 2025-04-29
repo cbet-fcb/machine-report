@@ -4,7 +4,7 @@ import datetime
 from utils import *
 import re
 from pydantic import BaseModel, Field, field_validator
-from typing import Optional, Union, List
+from typing import Optional, Tuple, Dict, List
 
 db = mongoDb()
 
@@ -86,15 +86,59 @@ class Text(BaseModel):
     def get_text(self):
         return self.text
 
+class TargetMaker:
+    @staticmethod
+    def make_target(unit_name: str, alias: str = "") -> Tuple[str, str]:
+        if not unit_name:
+            raise ValueError('Unit name or alias must not be empty')
+        return unit_name, alias or unit_name
+
 class MachineReport(BaseModel):
-    
-    pass
+    targets: List[Tuple[str, str]] = Field(..., description="Find the target as value pair")
+    nlp_output: Dict = Field(..., description="NLP Output")
+
+
+    @field_validator('nlp_output')
+    @classmethod
+    def validate_nlp_output_keys(cls, value):
+        REQUIRED_KEYS = {"tokens", "entities", "units_info"}
+        missing = REQUIRED_KEYS - value.keys()  
+        if missing:
+            raise ValueError(f"Missing required NLP keys: {missing}")
+        return value
+
+    def does_targets_exist(self) -> List[str]:
+        found = []
+        for unit, alias in self.targets:
+            if any(p['unit'] == unit for p in self.nlp_output.get('units_info', {}).get('unit_pairs', [])):
+                found.append(alias)
+        return found
+
+    def get_unit_pair(self) -> List[Dict[str, str]]:
+        return self.nlp_output.get("units_info", {}).get("unit_pairs", [])
+
+    def get_value(self) -> List[str]:
+        return [p['value'] for p in self.get_unit_pair()]
+
+    def generate_machine_report(self) -> Dict[str, Dict]:
+        result = {}
+        for unit, alias in self.targets:
+            for pair in self.get_unit_pair():
+                if pair["unit"] == unit:
+                    result[alias] = pair
+        return result
 
 if __name__ == '__main__':
-    image = Image(path="test1.png")
-
-    data = image.load_image()
-    
-    print(data)
-    pass
+    report = MachineReport(
+        targets=[TargetMaker.make_target("pcs/min", "")],
+        nlp_output={
+            "tokens": ["Speed", "200", "pcs/min"],
+            "entities": [],
+            "units_info": {
+                "annotations": [("200", "WORD"), ("pcs/min", "UNIT")],
+                "unit_pairs": [{"value": "200", "unit": "pcs/min"}]
+            }
+        }
+    )
+    print(report.generate_machine_report())
 
