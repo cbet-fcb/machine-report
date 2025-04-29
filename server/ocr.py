@@ -14,7 +14,7 @@ import concurrent.futures
 from utils import *
 
 class OCR(Image):
-    def run_ocr(self) -> dict:
+    def run_ocr(self) -> str:
         image = self.load_image()
         if image is None:
             raise ValueError(f'Failed to load image from: {self.path}')
@@ -22,7 +22,7 @@ class OCR(Image):
         ocr = PaddleOCR(use_angle_cls=True, lang='en', debug=False, show_log=False)
         ocr_res = ocr.ocr(image, cls=True)
         processed_text = self.process_ocr_output(ocr_res)
-        return {"text": processed_text}
+        return processed_text
     def process_ocr_output(self, ocr_result: list) -> str:
         """
         Process the raw OCR output to prepare text for NLP tasks.
@@ -49,4 +49,4 @@ class OCR(Image):
 
 if __name__ == '__main__':
     test = OCR(path="test1.png")
-    print(str(test.run_ocr()))
+    print(test.run_ocr())

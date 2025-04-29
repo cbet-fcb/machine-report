@@ -1,6 +1,8 @@
 from ocr import OCR
 from pydantic import BaseModel, Field
 import spacy
+from spacy.tokenizer import Tokenizer
+from spacy.util import compile_prefix_regex, compile_infix_regex, compile_suffix_regex
 import time
 
 class NLP:
@@ -12,6 +14,24 @@ class NLP:
                 Medium: 'en_core_web_lg' (20ms for 200char)
         """
         self.nlp = spacy.load(en_core_type)
+
+        infix_re = compile_infix_regex(
+            self.nlp.Defaults.infixes +
+            [
+                r"(?<=[a-zA-Z])(?=\d)",  # Split letter -> digit
+                r"(?<=\d)(?=[a-zA-Z])",  # Split digit -> letter
+                r"(?<=\w)(?=[&:])",      # Split word -> (& or :)
+                r"(?<=[&:])(?=\w)",      # Split (& or :) -> word
+            ]
+        )
+        self.nlp.tokenizer = Tokenizer(
+            self.nlp.vocab,
+            rules=self.nlp.Defaults.tokenizer_exceptions,
+            prefix_search=compile_prefix_regex(self.nlp.Defaults.prefixes).search,
+            suffix_search=compile_suffix_regex(self.nlp.Defaults.suffixes).search,
+            infix_finditer=infix_re.finditer,
+            token_match=self.nlp.Defaults.token_match,
+        )
         pass
 
     def handle_text(self, text: str) -> dict:
@@ -25,9 +45,6 @@ class NLP:
             "entities": entities,
             "pos_tags": [(token.text, token.pos_) for token in doc],
         }
-        
-    
-    pass
 
 
 
