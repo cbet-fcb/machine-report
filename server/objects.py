@@ -86,6 +86,10 @@ class Text(BaseModel):
     def get_text(self):
         return self.text
 
+class MachineReport(BaseModel):
+    
+    pass
+
 if __name__ == '__main__':
     image = Image(path="test1.png")
 
