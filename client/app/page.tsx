@@ -2,105 +2,25 @@
 
 import React from "react";
 
-import Camera from "./assets/camera";
+import PageWrapper from "../components/PageWrapper";
 
-import ServerRequests from "./api/ServerRequests";
+import CameraIcon from "./assets/camera.svg";
 
-import ThemeControl from "../components/ThemeControl";
-import ProgressLoading from "../components/ProgressLoading";
-import OcrResults from "../components/OcrResults";
+import Image from "next/image";
 
-interface ProgressData {
-  progress: number;
-  msg: string;
-  data?: {
-    machine_report: ocrResult;
-  };
-}
-interface OcrValue {
-  value: string | number;
-  unit?: string;
-}
-
-interface ocrResult {
-  [key: string]: OcrValue | string | number | undefined;
-}
-
-export default function Home(): React.JSX.Element {
-  const server = new ServerRequests();
-
+export default function Home() {
   const cameraInputRef = React.useRef<HTMLInputElement | null>(null);
-
-  const [ocrData, setOcrData] = React.useState<ocrResult | null>(null);
-
-  const [progressData, setProgressData] = React.useState<ProgressData>(
-    {} as ProgressData
-  );
-
-  const [loading, setLoading] = React.useState(false);
 
   const [uploadedImage, setUploadedImage] = React.useState<string | null>(null);
 
-  const [allowFeedback, setAllowFeedback] = React.useState(true);
-  const [showFeedback, setShowFeedback] = React.useState(false);
-
-  const [machineReportId, setMachineReportId] = React.useState<string | null>(
-    null
-  );
-
-  const handleImageUpload = async (
-    event: React.ChangeEvent<HTMLInputElement>
-  ) => {
+  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    setProgressData({
-      progress: 0,
-      msg: "",
-    });
     if (file) {
       const reader = new FileReader();
       reader.onloadend = () => {
-        setLoading(true);
         setUploadedImage(reader.result as string);
       };
       reader.readAsDataURL(file);
-
-      server.streamProcessImage(file, (data) => {
-        setProgressData(data);
-        if (data?.error) {
-          setLoading(false);
-          setProgressData({
-            progress: 0,
-            msg: "Error: " + data.error,
-          });
-          setOcrData(null);
-          console.log(data.error);
-          setUploadedImage(null);
-          // alert("Error Image ");
-          alert(data.error);
-          setProgressData({
-            progress: 0,
-            msg: "",
-          });
-        }
-        if (data?.data && data?.progress === 100) {
-          setOcrData(data.data);
-          setLoading(false);
-          setProgressData({
-            progress: 0,
-            msg: "...",
-          });
-          setAllowFeedback(data?.data?.["allow-feedback"] || false);
-          setShowFeedback(data?.data?.["allow-feedback"] || false);
-          setMachineReportId(data?.data?._id || null);
-          console.log(data);
-          alert("Image Process Success ");
-          setProgressData({
-            progress: 0,
-            msg: "",
-          });
-        }
-      });
-      setLoading(false);
     }
   };
 
@@ -110,129 +30,54 @@ export default function Home(): React.JSX.Element {
     }
   };
 
-  const handleFeedback = async (feedback: boolean) => {
-    if (machineReportId) {
-      const res = await server.feedback(machineReportId, feedback);
-      if (res) {
-        alert("Feedback Sent");
-      } else {
-        alert("Error Sending Feedback");
-      }
-      setAllowFeedback(false);
-      setShowFeedback(false);
-    }
-  };
-
   return (
-    <main className={` container !justify-start transition-all duration-300 `}>
-      {/* theme control */}
-      <div className="absolute top-5 right-5 z-50 shadow-lg border border-base-300 p-2 rounded-full">
-        <ThemeControl />
-      </div>
-
-      <h1
-        className={`${
-          uploadedImage && "pt-10 md:pt-0"
-        } text-2xl tracking-[8px] mt-auto `}
-      >
-        Machine  Report
-      </h1>
-
-      {/* camera input component */}
-      <div className={` flex flex-col items-center justify-center gap-10 `}>
-        <input
-          type="file"
-          accept="image/*"
-          capture="environment"
-          className="hidden"
-          onChange={handleImageUpload}
-          ref={cameraInputRef}
-        />
+    <PageWrapper>
+      <main className={` container ${uploadedImage && " !justify-start "} `}>
+        <h1 className="text-2xl tracking-[8px]">Machine  Report</h1>
         <div
-          className="w-[75vw] md:w-max max-w-[75vw] btn btn-xl h-max tooltip tooltip-open tooltip-bottom md:tooltip-right group"
-          onClick={handleCameraClick}
+          className={` flex flex-col items-center justify-center gap-10 pb-10`}
         >
-          <div className="tooltip-content bg-base-100 border border-base-content rounded-sm">
-            <div className=" font-light text-base-content">
-              Upload Something
-            </div>
-          </div>
-          <Camera className="size-20 group-hover:stroke-primary font-thin stroke-0.5  " />
-        </div>
-      </div>
-
-      <div className="w-[95vw] flex flex-col md:flex-row items-center justify-center gap-10 py-10 mb-auto transition-all duration-300  ">
-        {/* image preview modal */}
-        {!showFeedback && (
-          <OcrResults
-            ocrData={ocrData}
-            uploadedImage={uploadedImage}
-            loading={loading}
-            allowFeedback={allowFeedback}
-            showFeedback={showFeedback}
-            setShowFeedback={setShowFeedback}
+          <input
+            type="file"
+            accept="image/*"
+            capture="environment"
+            className="hidden"
+            onChange={handleImageUpload}
+            ref={cameraInputRef}
           />
-        )}
-
-        {/* upload loading modal */}
-        <ProgressLoading loading={loading} progressData={progressData} />
-
-        {/* feedback modal */}
-        {showFeedback && (
-          <div
-            className={`fixed inset-0 bg-black/80 z-50 flex flex-col h-screen w-full justify-start md:justify-center items-center transition-all duration-300 overflow-y-auto`}
+          <span
+            className="btn btn-xl h-max tooltip tooltip-open tooltip-right"
+            data-tip="Upload"
           >
-            <div className="h-max w-[95vw] flex flex-col md:flex-row items-center justify-center gap-10 pt-10 ">
-              <div
-                className={`${
-                  allowFeedback
-                    ? "text-base-100 border border-base-100"
-                    : "bg-base-100"
-                } relative w-full py-8 px-5 rounded-box flex flex-col gap-4`}
-              >
-                <button
-                  onClick={() => setShowFeedback(false)}
-                  className="absolute btn btn-xs btn-circle btn-outline top-1.5 right-1.5"
-                >
-                  x
-                </button>
-                <p className="w-full text-center">
-                  Do the result matches the picture?
-                </p>
-                <div className="w-full flex justify-evenly">
-                  <button
-                    className="btn btn-sm btn-outline"
-                    onClick={() => {
-                      handleFeedback(false);
-                    }}
-                  >
-                    No
-                  </button>
-                  <button
-                    onClick={() => {
-                      handleFeedback(true);
-                    }}
-                    className="btn btn-sm btn-primary"
-                  >
-                    Yes
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <div className="h-max w-[95vw] flex flex-col md:flex-row items-center justify-center gap-10 py-10">
-              <OcrResults
-                ocrData={ocrData}
-                uploadedImage={uploadedImage}
-                loading={loading}
-                allowFeedback={allowFeedback}
-                showFeedback={showFeedback}
-                setShowFeedback={setShowFeedback}
+            <Image
+              className="size-20"
+              alt="Camera Upload"
+              height={10}
+              width={10}
+              onClick={handleCameraClick}
+              src={CameraIcon}
+            ></Image>
+          </span>
+          {uploadedImage && (
+            <div className="flex flex-col items-center justify-center ">
+              <img
+                className="max-w-[99vw] h-max"
+                src={uploadedImage}
+                alt="Uploaded"
               />
             </div>
-          </div>
-        )}
-      </div>
-    </main>
+          )}
+          {uploadedImage && (
+            <div className="flex flex-col items-center justify-center h-[45vh] w-[98vw] border">
+              <img
+                className="w-full h-full"
+                src={uploadedImage}
+                alt="Uploaded"
+              />
+            </div>
+          )}
+        </div>
+      </main>
+    </PageWrapper>
   );
 }
