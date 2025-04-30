@@ -1,6 +1,6 @@
 from ocr import OCR
 from nlp import NLP
-from textProcessor import TextProcessor
+from textProcessor import TextProcessor, Normalizer
 # To instantiate: 
 #   path: for Image
 #   en_core_type: for NLP
@@ -9,6 +9,7 @@ class ImageToTextHandler:
     def __init__(self):
         self.nlp = NLP()
         self.ocr = OCR()
+        self.normalizer = Normalizer()
         self.text_processor = TextProcessor()
         pass
 
@@ -18,9 +19,10 @@ class ImageToTextHandler:
         self.ocr.path = path
         
         unprocessed_text = self.ocr.run_ocr()
-        nlp_handled_dict = self.nlp.handle_text(unprocessed_text)
-        fully_normalized = self.text_processor.normalize_text(nlp_handled_dict)
-        return fully_normalized
+        all_lower_case_text = self.normalizer.convert_ocr_result_alphabets_to_small_letter(unprocessed_text)
+        nlp_handled_dict = self.nlp.handle_text(all_lower_case_text)
+        processed_text = self.text_processor.process_text(nlp_handled_dict)
+        return processed_text
 
 
 

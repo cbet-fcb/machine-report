@@ -1,6 +1,61 @@
 import re
-from typing import List, Dict
+from typing import List, Dict, Tuple
 from rapidfuzz import process, fuzz
+
+class IDExtractor:
+    def __init__(self):
+        self.known_ids = {
+            "Machine 1", "Machine 2", "Machine 3", "Machine 4",
+            "Machine 5", "Machine 6", "Machine 7", "Machine 8",
+            "Machine 9", "Machine 10", "Machine 11", "Machine 12",
+            "Machine 13"
+        }
+        self.learned_ids = set()
+        self.similarity_threshold = 85  # Slightly higher threshold to avoid false positives
+
+    def extract_ids(self, tokens: List[str]) -> Dict:
+        id_matches = []
+        annotations = []
+
+        for i, token in enumerate(tokens):
+            label, matched_id = self._label_token(token, tokens, i)
+            annotations.append((token, label))
+
+            if label == "ID":
+                id_matches.append(matched_id or token)
+
+        return {
+            "annotations": annotations,
+            "id_matches": id_matches
+        }
+
+    def _label_token(self, token: str, tokens: List[str], i: int) -> Tuple[str, str]:
+        normalized = self._normalize_token(token)
+
+        if self._is_known_id(normalized):
+            return "ID", normalized
+
+        # Try matching concatenated patterns like "Machine" + "3"
+        if i < len(tokens) - 1 and token.lower() == "machine" and tokens[i + 1].isdigit():
+            combined = f"{token} {tokens[i + 1]}"
+            if self._is_known_id(combined):
+                return "ID", combined
+
+        # Fuzzy matching
+        best_match, score, _ = process.extractOne(
+            normalized, self.known_ids, scorer=fuzz.ratio
+        )
+        if score >= self.similarity_threshold:
+            self.learned_ids.add(best_match)
+            return "ID", best_match
+
+        return "WORD", None
+
+    def _is_known_id(self, token: str) -> bool:
+        return token in self.known_ids or token in self.learned_ids
+
+    def _normalize_token(self, token: str) -> str:
+        return re.sub(r'[^\w\s]', '', token).title()
 
 class UnitExtractor:
     def __init__(self):
@@ -14,18 +69,48 @@ class UnitExtractor:
     def extract_units(self, tokens: List[str]) -> Dict:
         unit_pairs = []
         annotations = []
+        i = 0
 
-        for i, token in enumerate(tokens):
+        while i < len(tokens):
+            token = tokens[i]
+            combined_token = token
+
+            # Try combining next token(s) if they exist
+            if i + 2 < len(tokens) and tokens[i+1] in {"/", "-"}:
+                combined_token = f"{token}/{tokens[i+2]}"
+                normalized_combined = self._normalize_token(combined_token)
+
+                best_match, score, _ = process.extractOne(
+                    normalized_combined, self.known_units, scorer=fuzz.ratio
+                )
+
+                if score >= self.similarity_threshold:
+                    label = "UNIT"
+                    matched_unit = best_match
+                    annotations.append((combined_token, label))
+
+                    # Check for value before combined unit
+                    if i > 0 and tokens[i-1].replace(',', '').replace('.', '').isdigit():
+                        unit_pairs.append({
+                            "value": tokens[i-1],
+                            "unit": matched_unit
+                        })
+
+                    i += 3  # Skip the combined tokens
+                    continue
+
+            # Fallback to normal single-token labeling
             label, matched_unit = self._label_token(token, tokens, i)
             annotations.append((token, label))
 
             # Check for value + unit pattern
             if i > 0 and tokens[i-1].replace(',', '').replace('.', '').isdigit() and label == "UNIT":
-                value = tokens[i-1]
                 unit_pairs.append({
-                    "value": value,
+                    "value": tokens[i-1],
                     "unit": matched_unit or token
                 })
+
+            i += 1
 
         return {
             "annotations": annotations,
@@ -66,13 +151,34 @@ class UnitExtractor:
     def _normalize_token(self, token: str) -> str:
         return re.sub(r'[^\w/]', '', token.lower())
     
+class Normalizer:
+    def __init__(self):
+        pass
+
+    def convert_ocr_result_alphabets_to_small_letter(self, text: str) -> str:
+        """
+        Converts all alphabetic characters in the OCR result to lowercase.
+        This helps normalize OCR output for consistent processing.
+        """
+        if not isinstance(text, str):
+            raise TypeError("Input must be a string.")
+        return text.lower()
+
 class TextProcessor:
     def __init__(self):
         self.unit_extractor = UnitExtractor()
+        self.id_extractor = IDExtractor()
 
-    def normalize_text(self, nlp_output: dict) -> dict:
+    def process_text(self, nlp_output: dict) -> dict:
         tokens = nlp_output.get('tokens', [])
+
         units_info = self.unit_extractor.extract_units(tokens)
-        
+        ids_info = self.id_extractor.extract_ids(tokens)
+
         nlp_output['units_info'] = units_info
+        nlp_output['ids_info'] = ids_info
+
         return nlp_output
+    
+if __name__ == '__main__':
+    pass

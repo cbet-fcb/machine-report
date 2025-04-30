@@ -46,8 +46,6 @@ class NLP:
             "pos_tags": [(token.text, token.pos_) for token in doc],
         }
 
-
-
 if __name__ == '__main__':
     nlp = NLP()
     text = "This is an example input with about 200 characters. It tests the processing speed of a small spaCy model, mainly used for basic NLP tasks such as tokenization, tagging, and named entity recognition."
