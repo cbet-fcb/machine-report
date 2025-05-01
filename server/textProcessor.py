@@ -9,68 +9,92 @@ from rapidfuzz import fuzz, process
 
 class IDExtractor:
     def __init__(self):
-        self.known_ids = {
-            "Machine 1", "Machine 2", "Machine 3", "Machine 4",
-            "Machine 5", "Machine 6", "Machine 7", "Machine 8",
-            "Machine 9", "Machine 10", "Machine 11", "Machine 12",
-            "Machine 13"
-        }
+        self.known_ids = {f"Machine {i}" for i in range(1, 14)}
         self.learned_ids = set()
-        self.similarity_threshold = 85  # High to avoid false positives
+        self.similarity_threshold = 85
 
     def extract_ids(self, tokens: List[str]) -> Dict:
+        tokens = self._split_compound_tokens(tokens)
         id_matches = []
         annotations = []
 
         i = 0
         while i < len(tokens):
-            token = tokens[i]
-            label, matched_id = self._label_token(token, tokens, i)
+            matched_id, skip = self._attempt_fuzzy_machine_id(tokens, i)
 
-            annotations.append((token, label))
+            if matched_id:
+                annotations.append((tokens[i], "ID"))
+                id_matches.append(matched_id)
+                i += skip + 1
+                continue
 
+            label, matched_id = self._label_token(tokens[i])
+            annotations.append((tokens[i], label))
             if label == "ID":
                 id_matches.append(matched_id)
-                # If it was a combined "Machine + number", skip the next token
-                if i < len(tokens) - 1 and token.lower() == "machine" and tokens[i + 1].isdigit():
-                    i += 1
-
             i += 1
+
+        print("Extracted IDs:", id_matches)
+        print("Annotations:", annotations)
 
         return {
             "annotations": annotations,
             "id_matches": id_matches
         }
 
-    def _label_token(self, token: str, tokens: List[str], i: int) -> Tuple[str, str]:
+    def _label_token(self, token: str) -> Tuple[str, str]:
         normalized = self._normalize_token(token)
 
-        # Try exact known match
-        if self._is_known_id(normalized):
-            return "ID", normalized
-
-        # Try "Machine" + number pattern
-        if i < len(tokens) - 1 and token.lower() == "machine" and tokens[i + 1].isdigit():
-            combined = f"{token.title()} {tokens[i + 1]}"
-            if self._is_known_id(combined):
-                return "ID", combined
-
-        # Fuzzy match if nothing else worked
-        best_match, score, _ = process.extractOne(
-            normalized, self.known_ids, scorer=fuzz.ratio
-        )
-        if score >= self.similarity_threshold:
-            self.learned_ids.add(best_match)
-            return "ID", best_match
+        if normalized == "Machine":
+            return "WORD", None
 
         return "WORD", None
+
+    def _attempt_fuzzy_machine_id(self, tokens: List[str], i: int) -> Tuple[str, int]:
+        token = tokens[i]
+        normalized = self._normalize_token(token)
+
+        if normalized != "Machine":
+            return None, 0
+
+        for offset in range(1, 3):
+            j = i + offset
+            if j < len(tokens):
+                next_token = tokens[j]
+                if next_token.isdigit():
+                    candidate = f"Machine {next_token}"
+                    if self._is_known_id(candidate):
+                        return candidate, offset
+        return None, 0
+
+    def _normalize_token(self, token: str) -> str:
+        token = re.sub(r'[^\w\s]', '', token).lower()
+        corrected = self._fuzzy_correct(token, targets=["machine"])
+        return corrected.title()
+
+    def _fuzzy_correct(self, token: str, targets: List[str]) -> str:
+        if not token:
+            return token
+        best_match, score, _ = process.extractOne(token, targets, scorer=fuzz.ratio)
+        if score >= self.similarity_threshold:
+            if token.lower() != best_match.lower():
+                print(f"Corrected '{token}' → '{best_match}' (score={score})")
+            return best_match
+        return token
 
     def _is_known_id(self, token: str) -> bool:
         return token in self.known_ids or token in self.learned_ids
 
-    def _normalize_token(self, token: str) -> str:
-        return re.sub(r'[^\w\s]', '', token).title()
-
+    def _split_compound_tokens(self, tokens: List[str]) -> List[str]:
+        split_tokens = []
+        for token in tokens:
+            match = re.match(r'(machine)(\d+)', token.lower())
+            if match:
+                split_tokens.extend([match.group(1), match.group(2)])
+            else:
+                split_tokens.append(token)
+        return split_tokens
+    
 class UnitExtractor:
     def __init__(self):
         self.known_units = {

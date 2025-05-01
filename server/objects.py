@@ -211,7 +211,7 @@ class MachineReportBuilder:
         return result
 
 if __name__ == '__main__':
-    input = MachineReportInputWrapper(image_path='test/test41.jpg', raw_text='400 pcs/min  asdoadjiowaosd iasdiawjid machine 1')
+    input = MachineReportInputWrapper(image_path='test/test41.jpg', raw_text='400 pcs/min  asdoadjiowaosd iasdiawjid machne 1')
     mrb = MachineReportBuilder(
         input=input,
         list_of_targets=[
