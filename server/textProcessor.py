@@ -2,6 +2,11 @@ import re
 from typing import List, Dict, Tuple
 from rapidfuzz import process, fuzz
 
+import re
+from typing import List, Tuple, Dict
+from rapidfuzz import fuzz, process
+
+
 class IDExtractor:
     def __init__(self):
         self.known_ids = {
@@ -11,18 +16,26 @@ class IDExtractor:
             "Machine 13"
         }
         self.learned_ids = set()
-        self.similarity_threshold = 85  # Slightly higher threshold to avoid false positives
+        self.similarity_threshold = 85  # High to avoid false positives
 
     def extract_ids(self, tokens: List[str]) -> Dict:
         id_matches = []
         annotations = []
 
-        for i, token in enumerate(tokens):
+        i = 0
+        while i < len(tokens):
+            token = tokens[i]
             label, matched_id = self._label_token(token, tokens, i)
+
             annotations.append((token, label))
 
             if label == "ID":
-                id_matches.append(matched_id or token)
+                id_matches.append(matched_id)
+                # If it was a combined "Machine + number", skip the next token
+                if i < len(tokens) - 1 and token.lower() == "machine" and tokens[i + 1].isdigit():
+                    i += 1
+
+            i += 1
 
         return {
             "annotations": annotations,
@@ -32,16 +45,17 @@ class IDExtractor:
     def _label_token(self, token: str, tokens: List[str], i: int) -> Tuple[str, str]:
         normalized = self._normalize_token(token)
 
+        # Try exact known match
         if self._is_known_id(normalized):
             return "ID", normalized
 
-        # Try matching concatenated patterns like "Machine" + "3"
+        # Try "Machine" + number pattern
         if i < len(tokens) - 1 and token.lower() == "machine" and tokens[i + 1].isdigit():
-            combined = f"{token} {tokens[i + 1]}"
+            combined = f"{token.title()} {tokens[i + 1]}"
             if self._is_known_id(combined):
                 return "ID", combined
 
-        # Fuzzy matching
+        # Fuzzy match if nothing else worked
         best_match, score, _ = process.extractOne(
             normalized, self.known_ids, scorer=fuzz.ratio
         )
@@ -175,10 +189,11 @@ class TextProcessor:
         units_info = self.unit_extractor.extract_units(tokens)
         ids_info = self.id_extractor.extract_ids(tokens)
 
-        nlp_output['units_info'] = units_info
-        nlp_output['ids_info'] = ids_info
+        res = {}
+        res['unit_info'] = units_info
+        res['ids_info'] = ids_info
 
-        return nlp_output
+        return res
     
 if __name__ == '__main__':
     pass

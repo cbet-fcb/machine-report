@@ -8,6 +8,11 @@ def generateRandomString():
         random.choice(string.ascii_letters + string.digits) for _ in range(32))
     # return random.randint(1000000000, 9999999999)
 
+def truncate_string(input_string: str, max_length: int = 20) -> str:
+    if len(input_string) > max_length:
+        return input_string[:max_length] + "..."
+    return input_string
+
 def updateData(dataToUpdate, updateQuery, unupdatableKeys):
 
     def set_nested(data, key, value):

@@ -1,11 +1,11 @@
-from ocr import OCR
+from ocr import OCREngine
 from pydantic import BaseModel, Field
 import spacy
 from spacy.tokenizer import Tokenizer
 from spacy.util import compile_prefix_regex, compile_infix_regex, compile_suffix_regex
 import time
 
-class NLP:
+class NLPEngine:
     def __init__(self, en_core_type="en_core_web_lg"):
         """
         ARGS:
@@ -40,14 +40,11 @@ class NLP:
         entities = [(ent.text, ent.label_) for ent in doc.ents]
 
         return {
-            "text": text,
             "tokens": [token.text for token in doc],
-            "entities": entities,
-            "pos_tags": [(token.text, token.pos_) for token in doc],
         }
 
 if __name__ == '__main__':
-    nlp = NLP()
+    nlp = NLPEngine()
     text = "This is an example input with about 200 characters. It tests the processing speed of a small spaCy model, mainly used for basic NLP tasks such as tokenization, tagging, and named entity recognition."
 
     start = time.perf_counter()

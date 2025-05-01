@@ -1,3 +1,1 @@
-# 
-
-A simple Flask server template with MongoDB integration.
+A simple Flask server template with MongoDB integration. 

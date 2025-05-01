@@ -13,16 +13,20 @@ from matplotlib import pyplot as plt
 import concurrent.futures
 from utils import *
 
-class OCR(Image):
-    def run_ocr(self) -> str:
-        image = self.load_image()
-        if image is None:
-            raise ValueError(f'Failed to load image from: {self.path}')
+from imageHandler import ImageHandler
 
-        ocr = PaddleOCR(use_angle_cls=True, lang='en', debug=False, show_log=False)
-        ocr_res = ocr.ocr(image, cls=True)
-        processed_text = self.process_ocr_output(ocr_res)
-        return processed_text
+class OCREngine:
+    def __init__(self):
+        self.ocr_engine = PaddleOCR(use_angle_cls=True, lang='en', debug=False, show_log=False)
+
+    def run_ocr(self, image_array: Any) -> str:
+        """
+        Run ocr engine
+        """
+        ocr_res = self.ocr_engine.ocr(image_array, cls=True)
+        
+        return self.process_ocr_output(ocr_res)
+        
     def process_ocr_output(self, ocr_result: list) -> str:
         """
         Process the raw OCR output to prepare text for NLP tasks.
@@ -48,5 +52,5 @@ class OCR(Image):
         return " ".join(extracted_text)
 
 if __name__ == '__main__':
-    test = OCR(path="test1.png")
-    print(test.run_ocr())
+    test = OCREngine(path="test1.png")
+    print(str(test.run_ocr()))

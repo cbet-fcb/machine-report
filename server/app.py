@@ -1,6 +1,9 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 
+from objects import Version
+APP_NAME = "IMAGE YIELDS OUTPUT TEXT"
+
 app = Flask(__name__)
 CORS(app)
 
