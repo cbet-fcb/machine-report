@@ -108,7 +108,7 @@ class ReportActions(MachineReportBuilder):
             ]
             third_stage = self.processed_text_to_machine_report(targets, second_stage)
             if not third_stage:
-                raise ValueError('Cannot find anything within the processed text')
+                raise ValueError('Cannot generate machine report within the processed text')
             res['machine_report'] = third_stage
 
             res['process_ends_at'] = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
