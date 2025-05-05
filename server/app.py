@@ -37,37 +37,28 @@ def allowed_file(filename):
     """Check if the file has an allowed extension."""
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-@app.route('/uploadFile', methods=['POST'])
-def uploadFile():
-    global uploaded_file_path
-
+@app.route('/streamProcessImage', methods=['GET'])
+def streamProcessImage():
+    """Upload file and stream processing immediately."""
     if 'file' not in request.files:
         return jsonify({'error': 'No file part'}), 400
-    
+
     file = request.files['file']
 
     if file.filename == '':
         return jsonify({'error': 'No selected file'}), 400
-    
+
     if file and allowed_file(file.filename):
         filename = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
         file.save(filename)
 
-        uploaded_file_path = filename
+        def generate():
+            yield f"data: {{\"progress\": 0, \"msg\": \"File uploaded, beginning processing...\"}}\n\n"
+            yield from sr.streamProcessImage(filename)
 
-        return jsonify({'message': f'File {file.filename} successfully uploaded'}), 200
-    else:
-        return jsonify({'error': 'File not allowed'}), 400
+        return Response(generate(), mimetype='text/event-stream')
 
-@app.route('/streamProcessImage', methods=['GET'])
-def streamProcessImage():
-    """Stream the processing of the uploaded image."""
-    global uploaded_file_path 
-
-    if uploaded_file_path is None:
-        return jsonify({'error': 'No file uploaded yet'}), 400
-
-    return Response(sr.streamProcessImage(uploaded_file_path), mimetype='text/event-stream')
+    return jsonify({'error': 'File not allowed'}), 400
 
 if __name__ == '__main__':
     if not os.path.exists(UPLOAD_FOLDER):
