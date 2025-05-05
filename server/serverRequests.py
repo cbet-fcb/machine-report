@@ -89,8 +89,6 @@ class ReportActions(MachineReportBuilder):
 
         try:
             first_stage = self.image_to_unprocessed_text(image)
-            if not first_stage:
-                raise ValueError('No text detected')
             res['unprocessed_text'] = first_stage
             yield f"data: {{\"progress\": 70, \"msg\": \"OCR complete. Normalizing text...\"}}\n\n"
 
