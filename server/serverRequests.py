@@ -1,10 +1,11 @@
 from objects import *
 import time
+import json
 
 db = mongoDb()
 
 
-class ReportActions:
+class ReportActions(MachineReportBuilder):
     def __init__(self):
         self.__cachedMetadata = dict()
     
@@ -79,6 +80,43 @@ class ReportActions:
             raise ImportError(f"Missing required module: {e}")
         except Exception as e:
             raise RuntimeError(f"Failed to process text '{truncate_string(text, max_length=10)}: {e}")
+
+    def streamProcessImage(self, image: str):
+        print('Processing image...')
+        res = {}
+        res['process_begins_at'] = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        yield f"data: {{\"progress\": 10, \"msg\": \"Starting image to text...\"}}\n\n"
+
+        try:
+            first_stage = self.image_to_unprocessed_text(image)
+            res['unprocessed_text'] = first_stage
+            yield f"data: {{\"progress\": 70, \"msg\": \"OCR complete. Normalizing text...\"}}\n\n"
+
+            second_stage = self.unprocessed_to_processed_text(first_stage)
+            res['processed_text'] = second_stage
+            yield f"data: {{\"progress\": 85, \"msg\": \"Text normalized. Building report...\"}}\n\n"
+
+            time.sleep(1)  # simulate delay before final stage
+            yield f"data: {{\"progress\": 90, \"msg\": \"Finalizing machine report...\"}}\n\n"
+
+            targets = [
+                TargetMaker.make_target('bpm', 'pcs/min(bpm)'),
+                TargetMaker.make_target('pcs/min', 'pcs/min(orig)')
+            ]
+            third_stage = self.processed_text_to_machine_report(targets, second_stage)
+            res['machine_report'] = third_stage
+
+            res['process_ends_at'] = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            res['version'] = Version(0, 0, 1).__str__()
+
+            self.__addMetadataToBeCached('result', {**res})
+            self.__createMachineReport({**res}, 'Machine Report')
+
+            yield f"data: {{\"progress\": 100, \"msg\": \"Done\", \"data\": {self.__dataToDict('source', 'image_path')} }}\n\n"
+        except Exception as e:
+            yield f"data: {{\"error\": \"{str(e)}\"}}\n\n"
+
+
 
 class ServerRequests(ReportActions):
     def __init__(self):

@@ -101,7 +101,7 @@ class MachineReportBuilder:
         self.targets = list_of_targets
 
     @staticmethod
-    def __image_to_unprocessed_text(image_path: str) -> str:
+    def image_to_unprocessed_text(image_path: str) -> str:
         """
         CONVERT IMAGE TO RAW TEXT (text might be joined inappropriately)
         """
@@ -120,7 +120,7 @@ class MachineReportBuilder:
         return res
 
     @staticmethod
-    def __unprocessed_to_processed_text(text: str) -> dict:
+    def unprocessed_to_processed_text(text: str) -> dict:
         """
         CONVERT RAW TEXT TO PROCESSED TEXT (separation exists)
         """
@@ -138,7 +138,7 @@ class MachineReportBuilder:
         return processed_text
     
     @staticmethod
-    def __processed_text_to_machine_report(targets: list[tuple[str, str]], nlp_output_as_input: dict[str, any]) -> dict[str, any]:
+    def processed_text_to_machine_report(targets: list[tuple[str, str]], nlp_output_as_input: dict[str, any]) -> dict[str, any]:
         """
         CONVERT PROCESSED TEXT TO MACHINE REPORT (check if target exist then paste it)    
         """
@@ -160,11 +160,11 @@ class MachineReportBuilder:
         
         process_begins_at = datetime.datetime.now()
 
-        first_stage = self.__image_to_unprocessed_text(self.input_wrapper.image_path) 
+        first_stage = self.image_to_unprocessed_text(self.input_wrapper.image_path) 
         
-        second_stage = self.__unprocessed_to_processed_text(first_stage)
+        second_stage = self.unprocessed_to_processed_text(first_stage)
 
-        third_stage = self.__processed_text_to_machine_report(self.targets, second_stage) 
+        third_stage = self.processed_text_to_machine_report(self.targets, second_stage) 
 
         res['process_begins_at'] = process_begins_at
         res['unprocessed_text'] = first_stage
@@ -184,9 +184,9 @@ class MachineReportBuilder:
         process_begins_at = datetime.datetime.now()
 
         cache_text = self.input_wrapper.raw_text
-        first_stage = self.__unprocessed_to_processed_text(cache_text)
+        first_stage = self.unprocessed_to_processed_text(cache_text)
 
-        second_stage = self.__processed_text_to_machine_report(self.targets, first_stage)
+        second_stage = self.processed_text_to_machine_report(self.targets, first_stage)
 
         res['process_begins_at'] = process_begins_at
         res['unprocessed_text'] = cache_text
