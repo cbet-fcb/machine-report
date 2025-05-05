@@ -99,14 +99,13 @@ class ReportActions(MachineReportBuilder):
 
             yield f"data: {{\"progress\": 85, \"msg\": \"Text normalized. Building report...\"}}\n\n"
 
-            time.sleep(1)  # simulate delay before final stage
-            yield f"data: {{\"progress\": 90, \"msg\": \"Finalizing machine report...\"}}\n\n"
 
             targets = [
                 TargetMaker.make_target('bpm', 'pcs/min(bpm)'),
                 TargetMaker.make_target('pcs/min', 'pcs/min(orig)')
             ]
             third_stage = self.processed_text_to_machine_report(targets, second_stage)
+            yield f"data: {{\"progress\": 90, \"msg\": \"Finalizing machine report...\"}}\n\n"
             if not third_stage:
                 raise ValueError('Cannot generate machine report within the processed text')
             res['machine_report'] = third_stage
