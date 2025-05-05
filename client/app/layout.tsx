@@ -3,6 +3,8 @@ import { ViewTransitions } from "next-view-transitions";
 import { Poppins } from "next/font/google";
 import "./globals.css";
 
+import PageWrapper from "../components/PageWrapper";
+
 const poppins = Poppins({
   subsets: ["latin"],
   weight: ["100", "200", "300", "400", "500", "600", "700", "800", "900"],
@@ -21,7 +23,9 @@ export default function RootLayout({
   return (
     <ViewTransitions>
       <html lang="en">
-        <body className={`${poppins.className}`}>{children}</body>
+        <body className={`${poppins.className}`}>
+          <PageWrapper>{children}</PageWrapper>
+        </body>
       </html>
     </ViewTransitions>
   );
