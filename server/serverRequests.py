@@ -89,11 +89,14 @@ class ReportActions(MachineReportBuilder):
 
         try:
             first_stage = self.image_to_unprocessed_text(image)
+            if not first_stage:
+                raise ValueError('No text detected')
             res['unprocessed_text'] = first_stage
             yield f"data: {{\"progress\": 70, \"msg\": \"OCR complete. Normalizing text...\"}}\n\n"
 
             second_stage = self.unprocessed_to_processed_text(first_stage)
             res['processed_text'] = second_stage
+
             yield f"data: {{\"progress\": 85, \"msg\": \"Text normalized. Building report...\"}}\n\n"
 
             time.sleep(1)  # simulate delay before final stage
@@ -104,6 +107,8 @@ class ReportActions(MachineReportBuilder):
                 TargetMaker.make_target('pcs/min', 'pcs/min(orig)')
             ]
             third_stage = self.processed_text_to_machine_report(targets, second_stage)
+            if not third_stage:
+                raise ValueError('Cannot find anything within the processed text')
             res['machine_report'] = third_stage
 
             res['process_ends_at'] = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
