@@ -60,6 +60,31 @@ def streamProcessImage():
 
     return jsonify({'error': 'File not allowed'}), 400
 
+@app.route('/feedback', methods=['POST'])
+def feedback():
+    """
+    Input stream for monitoring.
+    If feedback (bool) is set to true, then it means the image and the output matches (good)
+    else an edge case is detected (needed for debugging)
+    """
+    if not request.is_json:
+        return jsonify({'error': 'Content-Type must be application/json'}), 400
+    res = {}
+    
+    data = request.get_json()
+
+    feedback = data.get('feedback')
+    if not feedback:
+        return jsonify({'error': 'Feedback cannot be undefined'}), 400
+
+    id = data.get('_id')
+    if not id:
+        return jsonify({'error': 'Id cannot be undefined'})
+
+    res['picture_and_output_matches'] = feedback
+    res['_id'] = id
+
+
 if __name__ == '__main__':
     if not os.path.exists(UPLOAD_FOLDER):
         os.makedirs(UPLOAD_FOLDER)

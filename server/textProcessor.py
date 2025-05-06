@@ -46,20 +46,22 @@ class IDExtractor:
         return "WORD", None
 
     def _attempt_fuzzy_machine_id(self, tokens: List[str], i: int) -> Tuple[str, int]:
-        token = tokens[i]
-        normalized = self._normalize_token(token)
-
-        if normalized != "Machine":
-            return None, 0
-
-        for offset in range(1, 3):
-            j = i + offset
-            if j < len(tokens):
-                next_token = tokens[j]
-                if next_token.isdigit():
-                    candidate = f"Machine {next_token}"
+        # Case 1: "Machine" then digit
+        if self._normalize_token(tokens[i]) == "Machine":
+            for offset in range(1, 3):
+                j = i + offset
+                if j < len(tokens) and tokens[j].isdigit():
+                    candidate = f"Machine {tokens[j]}"
                     if self._is_known_id(candidate):
                         return candidate, offset
+
+        # Case 2: digit then "Machine"
+        if tokens[i].isdigit() and i + 1 < len(tokens):
+            if self._normalize_token(tokens[i + 1]) == "Machine":
+                candidate = f"Machine {tokens[i]}"
+                if self._is_known_id(candidate):
+                    return candidate, 1
+
         return None, 0
 
     def _normalize_token(self, token: str) -> str:
@@ -187,6 +189,56 @@ class UnitExtractor:
 class Normalizer:
     def __init__(self):
         pass
+
+    def fix_leading_O_in_text(self, text: str, targets: list[tuple[str, str]]) -> str:
+        """
+        Corrects occurrences where 'O' is incorrectly interpreted as a letter instead of '0'.
+        Applies the correction only if the word starts with 'O' followed by a valid unit.
+        """
+        # Split the text into words
+        words = text.split()
+        
+        corrected_words = []
+
+        # Iterate over the words
+        for word in words:
+            corrected_word = word
+            print(f"Processing word: {word}")  # Debug: print word being processed
+
+            # Check if the word starts with 'O' and follows the unit pattern
+            if corrected_word.lower().startswith('o'):
+                # Check each target unit
+                for unit, _ in targets:
+                    print(f"Checking if {word} starts with o{unit.lower()}")  # Debug: check each unit
+                    # Ensure word has the unit following the 'O'
+                    if corrected_word.lower().startswith(f"o{unit.lower()}"):
+                        # Replace the leading 'O' with '0' and preserve the rest of the word
+                        corrected_word = f"0{corrected_word[1:]}"  # Replace the first 'O' with '0'
+                        print(f"Fixed word: {corrected_word}")  # Debug: print the fixed word
+                        break  # Stop checking other units once a match is found
+
+            corrected_words.append(corrected_word)
+
+        # Rebuild the corrected text by joining words back together
+        corrected_text = " ".join(corrected_words)
+        return corrected_text
+
+
+    def __check_if_target_sees_leading_zero_as_let_o(self, text: str, targets: list[tuple[str, str]]): ## Edge case #1: If it sees num 0 as let O
+        affected_targets = []
+
+        for field_name, alias in targets:
+            for line in text.splitlines():
+                if alias in line:
+                    parts = line.split(alias)
+                    if len(parts) > 1:
+                        possible_value = parts[1].strip().split()[0]
+                        if possible_value.startswith('O') and len(possible_value) > 1 and possible_value[1].isdigit():
+                            affected_targets.append(field_name)
+                            break
+
+        return affected_targets
+    
 
     def convert_ocr_result_alphabets_to_small_letter(self, text: str) -> str:
         """

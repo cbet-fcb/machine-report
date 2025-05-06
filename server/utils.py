@@ -6,6 +6,17 @@ import functools
 
 from bson import ObjectId  # only if you're checking type explicitly
 
+def probability_generator(failure_rate: int = 50) -> bool:
+    """
+    Returns True with a probability equal to `failure_rate` percent.
+    True means NOT failed.
+    """
+    if not 0 <= failure_rate <= 100:
+        return False
+
+    return random.randint(0, 99) >= failure_rate
+
+
 def convert_objectid(obj):
     if isinstance(obj, ObjectId):
         return str(obj)

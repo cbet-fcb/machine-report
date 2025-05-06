@@ -146,9 +146,8 @@ class MachineReportBuilder:
         """
         if not text:
             raise ValueError('Text should not be empty')
-        lower_cased_text = self.normalizer.convert_ocr_result_alphabets_to_small_letter(text)
         
-        processed_text = self.nlp_engine.handle_text(lower_cased_text)
+        processed_text = self.nlp_engine.handle_text(text)
         if not processed_text or not processed_text.get("tokens"):
             raise ValueError('Processing from lower-cased text to processed text failed or produced empty output')
         
