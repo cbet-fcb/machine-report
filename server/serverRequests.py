@@ -106,43 +106,38 @@ class ReportActions:
             list_of_targets=list_of_targets,
             version=version
         )
+
         print('Processing image...')
-        res = {}
-        res['process_begins_at'] = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        res = self._initialize_process_data()
+
         yield f"data: {{\"progress\": 10, \"msg\": \"Starting image to text...\"}}\n\n"
 
         try:
+            # Stage 1: OCR Processing
             first_stage = machine_report_builder.image_to_unprocessed_text(image)
             yield f"data: {{\"progress\": 60, \"msg\": \"OCR complete. Normalizing text...\"}}\n\n"
-            change_leading_zero = machine_report_builder.normalizer.fix_leading_O_in_text(
-                first_stage, 
-                list_of_targets
-            )
-            yield f"data: {{\"progress\": 70, \"msg\": \"Cleaning up potential errors\"}}\n\n"
-            res['unprocessed_text'] = change_leading_zero
             
+            # Stage 2: Normalization
+            change_leading_zero = machine_report_builder.normalizer.fix_leading_O_in_text(first_stage, list_of_targets)
+            yield f"data: {{\"progress\": 70, \"msg\": \"Cleaning up potential errors\"}}\n\n"
+            
+            res['unprocessed_text'] = change_leading_zero
             second_stage = machine_report_builder.unprocessed_to_processed_text(change_leading_zero)
-            yield f"data: {{\"progress\": 75, \"msg\": \"Separating the text to tokens has been successful...\"}}\n\n"
-
             yield f"data: {{\"data\": {json.dumps(second_stage['tokens'])}}}"
+            
             res['processed_text'] = second_stage
 
+            # Stage 3: Generate Machine Report
             third_stage = machine_report_builder.processed_text_to_machine_report(
                 machine_report_builder.machine_report_handler.targets,
                 second_stage
             )
 
             yield f"data: {{\"progress\": 90, \"msg\": \"Finalizing machine report...\"}}\n\n"
-            
             if not third_stage:
                 raise ValueError('Cannot generate machine report')
 
-            missing_keys = []
-
-            for unit, alias in list_of_targets:
-                if alias not in third_stage:
-                    missing_keys.append(f"{unit} or {alias}")
-
+            missing_keys = self._check_missing_keys(list_of_targets, third_stage)
             if missing_keys:
                 self.__createMachineReport(query={"missing_keys": missing_keys, **res}, collection_name=collection_name)
                 raise ValueError(f'Missing required keys: {", ".join(missing_keys)}')
@@ -151,19 +146,14 @@ class ReportActions:
             res['process_ends_at'] = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             res['version'] = machine_report_builder.version.__str__()
 
-            ## Adding feedback feature (enabled but not always)
+            # Handle feedback mechanism
             cache_allowing_feedback = probability_generator(failure_rate=95)
             res['allow_feedback'] = cache_allowing_feedback
 
-            final = {}
-            if cache_allowing_feedback:
-                self.__createMachineReport(res, monitoring_cname)
-                final = res
-            else:
-                final['machine-number'] = third_stage.get('machine_number')
-                for unit, alias in list_of_targets:
-                    final[alias] = third_stage.get(alias)
-                self.__createMachineReport(res, collection_name)
+            final = self._generate_final_report(cache_allowing_feedback, third_stage, list_of_targets, version.__str__())
+
+            # Final Report Creation
+            self.__createMachineReport(final, collection_name)
 
             payload = {
                 "progress": 100,
@@ -171,10 +161,37 @@ class ReportActions:
                 "data": final
             }
 
-            print(res)
-            yield f"data: {json.dumps(payload, default=convert_objectid)}"
+            yield f"data: {json.dumps(payload, default=convert_objectid)}\n\n"
+
         except Exception as e:
             yield f'data: {{\"error\": \"{str(e)}\"}}\n\n'
+
+
+    # Helper Methods for Cleanliness
+    def _initialize_process_data(self):
+        return {
+            'process_begins_at': datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        }
+
+    def _check_missing_keys(self, list_of_targets, third_stage):
+        missing_keys = []
+        for unit, alias in list_of_targets:
+            if alias not in third_stage:
+                missing_keys.append(f"{unit} or {alias}")
+        return missing_keys
+
+    def _generate_final_report(self, cache_allowing_feedback, third_stage, list_of_targets, version):
+        final = {}
+        if cache_allowing_feedback:
+            self.__createMachineReport(third_stage, 'Monitoring')
+            final = third_stage
+        else:
+            final['machine-number'] = third_stage.get('machine_number')
+            for unit, alias in list_of_targets:
+                final[alias] = third_stage.get(alias)
+            final['allow-feedback'] = cache_allowing_feedback
+            final['version'] = version
+        return final
 
 
 
