@@ -37,7 +37,7 @@ def allowed_file(filename):
     """Check if the file has an allowed extension."""
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-@app.route('/streamProcessImage', methods=['GET'])
+@app.route('/streamProcessImage', methods=['POST'])
 def streamProcessImage():
     """Upload file and stream processing immediately."""
     if 'file' not in request.files:
