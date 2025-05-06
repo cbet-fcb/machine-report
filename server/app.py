@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, Response
+from flask import Flask, request, jsonify, Response, stream_with_context
 from flask_cors import CORS
 import os 
 
@@ -56,7 +56,7 @@ def streamProcessImage():
             yield f"data: {{\"progress\": 0, \"msg\": \"File uploaded, beginning processing...\"}}\n\n"
             yield from sr.streamProcessImage(filename)
 
-        return Response(generate(), mimetype='text/event-stream')
+        return Response(stream_with_context(generate()), mimetype='text/event-stream')
 
     return jsonify({'error': 'File not allowed'}), 400
 
