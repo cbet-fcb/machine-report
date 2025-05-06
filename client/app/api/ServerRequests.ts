@@ -1,11 +1,21 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-import { th } from "framer-motion/client";
 import Server from "./Server";
 
 class ServerRequests extends Server {
   constructor() {
     super();
   }
+
+  async ping() {
+    try {
+      const res = await fetch(`${this.apiUrl}/ping`, {
+        method: "GET",
+      });
+      return await res.json();
+    } catch (err) {
+      console.error("Ping error:", err);
+    }
+  }
+
 
   streamProcessImage(file: File, onMessage: (data: any) => void) {
     const formData = new FormData();
@@ -49,8 +59,6 @@ class ServerRequests extends Server {
         }
 
         readStream();
-
-        console.log("response,", res)
 
         return res.text();
       })

@@ -8,46 +8,72 @@ import Image from "next/image";
 
 import ServerRequests from "./api/ServerRequests";
 
-export default function Home() {
+interface ProgressData {
+  progress: number;
+  msg: string;
+  data?: {
+    machine_report: ocrResult;
+  };
+}
+interface OcrValue {
+  value: string | number;
+  unit?: string;
+}
+
+interface ocrResult {
+  [key: string]: OcrValue | string | number | undefined;
+}
+
+export default function Home({}): React.JSX.Element {
   const server = new ServerRequests();
 
   const cameraInputRef = React.useRef<HTMLInputElement | null>(null);
+
+  const [ocrData, setOcrData] = React.useState<ocrResult | null>(null);
+
+  const [progressData, setProgressData] = React.useState<ProgressData>(
+    {} as ProgressData
+  );
 
   const [loading, setLoading] = React.useState(false);
 
   const [uploadedImage, setUploadedImage] = React.useState<string | null>(null);
   const [expanded, setExpanded] = React.useState(false);
 
-  // const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-  //   setLoading(true);
-  //   const file = event.target.files?.[0];
-  //   if (file) {
-  //     const reader = new FileReader();
-  //     reader.onloadend = () => {
-  //       setUploadedImage(reader.result as string);
-  //     };
-  //     reader.readAsDataURL(file);
-  //   }
-  //   setLoading(false);
-  // };
-
   const handleImageUpload = async (
     event: React.ChangeEvent<HTMLInputElement>
   ) => {
-    setLoading(true);
     const file = event.target.files?.[0];
     if (file) {
       const reader = new FileReader();
       reader.onloadend = () => {
+        setLoading(true);
         setUploadedImage(reader.result as string);
       };
       reader.readAsDataURL(file);
 
       server.streamProcessImage(file, (data) => {
-        console.log("Progress:", data); 
+        setProgressData(data);
+        console.log("progressData", data);
+        if (data?.error) {
+          setLoading(false);
+          setProgressData({
+            progress: 0,
+            msg: "Error: " + data.error,
+          });
+          alert("Error Image ");
+        }
+        if (data?.data && data?.progress === 100) {
+          setOcrData(data.data.machine_report);
+          setLoading(false);
+          setProgressData({
+            progress: 0,
+            msg: "...",
+          });
+        }
       });
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const handleCameraClick = () => {
@@ -56,24 +82,32 @@ export default function Home() {
     }
   };
 
-  // React.useEffect(() => {
-  //   const eventSource = new EventSource("/api/events");
-
-  //   eventSource.onmessage = (event) => {
-  //     console.log(event.data);
-  //   };
-
-  //   eventSource.onerror = () => {
-  //     eventSource.close();
-  //   };
-
-  //   return () => {
-  //     eventSource.close();
-  //   };
-  // }, []);
+  // const handlePing = async() => {
+  //   const res = await server.ping();
+  //   alert(res?.test || "error");
+  // }
 
   return (
     <main className={` container !justify-start transition-all duration-300 `}>
+      {/* <button className="btn" onClick={handlePing}>test</button> */}
+
+      {loading && (
+        <div
+          className={`${
+            loading
+              ? " fixed inset-0 bg-black/80 z-50 justify-center"
+              : " static w-full md:w-[46%] justify-start "
+          }  flex flex-col items-center gap-2 `}
+        >
+          <progress
+            className="progress progress-info h-4 w-56"
+            value={progressData?.progress || 0}
+            max="100"
+          ></progress>
+          <h3 className="text-white tracking-widest ">{progressData?.msg}</h3>
+        </div>
+      )}
+
       <label className="swap swap-rotate">
         <input type="checkbox" className="theme-controller" value="capagain" />
 
@@ -109,7 +143,6 @@ export default function Home() {
         />
         <div
           className="btn btn-xl h-max tooltip tooltip-open tooltip-bottom md:tooltip-right "
-          // data-tip="Upload"
           onClick={handleCameraClick}
         >
           <div className="tooltip-content bg-base-100 border border-base-content rounded-sm">
@@ -118,7 +151,7 @@ export default function Home() {
             </div>
           </div>
           <Image
-            className={`${loading && "loading"} size-20`}
+            className={` size-20`}
             alt="Camera Upload"
             height={10}
             width={10}
@@ -128,36 +161,52 @@ export default function Home() {
       </div>
 
       <div className="w-[95vw] flex flex-col md:flex-row items-center justify-center gap-10 py-10 mb-auto">
-        {uploadedImage && (
+        {uploadedImage && !loading && (
           <div className="h-full w-full md:w-[46%]">
             <div className="w-full rounded-box border overflow-clip">
-              <div className="bg-base-200 w-full h-12 border-b flex items-center justify-center font-semibold">
+              <div className="bg-base-200 w-full h-12 border-b flex items-center justify-center tracking-widest">
                 {" "}
+                {String(
+                  ocrData?.machine_number == "None"
+                    ? ""
+                    : ocrData?.machine_number
+                )}{" "}
                 Results{" "}
               </div>
               <table className="table text-center ">
                 <tbody>
-                  <tr className="">
-                    <th className="w-[90px] bg-base-200 border-r border-b">
-                      1
-                    </th>
-                    <td className="border-b">2</td>
-                  </tr>
-                  <tr>
-                    <th className=" bg-base-200 border-r">3</th>
-                    <td>4</td>
-                  </tr>
+                  {Object.entries(ocrData || {}).map(([key, value]) => {
+                    if (key === "machine_number") {
+                      return null; // Skip the machine_number entry
+                    }
+                    return (
+                      <tr key={key} className="hover">
+                        <td className="text-base-content font-light text-sm">
+                          {key}
+                        </td>
+                        <td className="text-base-content font-light text-sm">
+                          {typeof value === "object" &&
+                          value !== null &&
+                          "value" in value
+                            ? `${(value as OcrValue).value} ${
+                                (value as OcrValue).unit || ""
+                              }`
+                            : value}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
           </div>
         )}
-        {uploadedImage && (
+        {uploadedImage && !loading && (
           <>
             <div
               className={`${
                 expanded
-                  ? " fixed inset-0 bg-black/50 z-50 justify-center"
+                  ? " fixed inset-0 bg-black/80 z-50 justify-center"
                   : " static w-full md:w-[46%] justify-start "
               }  flex items-center transition-all duration-300`}
               onClick={() => setExpanded((prev) => !prev)}
