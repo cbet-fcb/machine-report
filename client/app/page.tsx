@@ -6,7 +6,11 @@ import CameraIcon from "./assets/camera.svg";
 
 import Image from "next/image";
 
+import ServerRequests from "./api/ServerRequests";
+
 export default function Home() {
+  const server = new ServerRequests();
+
   const cameraInputRef = React.useRef<HTMLInputElement | null>(null);
 
   const [loading, setLoading] = React.useState(false);
@@ -14,15 +18,35 @@ export default function Home() {
   const [uploadedImage, setUploadedImage] = React.useState<string | null>(null);
   const [expanded, setExpanded] = React.useState(false);
 
-  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  // const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  //   setLoading(true);
+  //   const file = event.target.files?.[0];
+  //   if (file) {
+  //     const reader = new FileReader();
+  //     reader.onloadend = () => {
+  //       setUploadedImage(reader.result as string);
+  //     };
+  //     reader.readAsDataURL(file);
+  //   }
+  //   setLoading(false);
+  // };
+
+  const handleImageUpload = async (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
     setLoading(true);
     const file = event.target.files?.[0];
+    console.log(file)
     if (file) {
       const reader = new FileReader();
       reader.onloadend = () => {
         setUploadedImage(reader.result as string);
       };
       reader.readAsDataURL(file);
+
+      server.streamProcessImage(file, (data) => {
+        console.log("Progress:", data.progress);
+      });
     }
     setLoading(false);
   };
@@ -33,7 +57,21 @@ export default function Home() {
     }
   };
 
-  console.log(expanded);
+  // React.useEffect(() => {
+  //   const eventSource = new EventSource("/api/events");
+
+  //   eventSource.onmessage = (event) => {
+  //     console.log(event.data);
+  //   };
+
+  //   eventSource.onerror = () => {
+  //     eventSource.close();
+  //   };
+
+  //   return () => {
+  //     eventSource.close();
+  //   };
+  // }, []);
 
   return (
     <main className={` container !justify-start transition-all duration-300 `}>
