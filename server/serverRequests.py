@@ -5,20 +5,12 @@ import json
 db = mongoDb()
 
 
-class ReportActions(MachineReportBuilder):
+class ReportActions:
     def __init__(self):
-        self.__cachedMetadata = dict()
+        pass
     
-    def __clearCached(self):
-        self.__cachedMetadata.clear()
-        pass
-
-    def __addMetadataToBeCached(self, key: str, data: any):
-        self.__cachedMetadata[key] = data
-        pass
-
-    def __dataToDict(self, key: str, data: any) -> dict:
-        return {**self.__cachedMetadata, key: data}
+    def __delete(self, query: dict = {}, collection_name='Machine Report'):
+        res = db.delete(query=query, collection_name=collection_name)
         pass
 
     def __createMachineReport(self, query: dict, collection_name: str) -> None:
@@ -81,40 +73,54 @@ class ReportActions(MachineReportBuilder):
         except Exception as e:
             raise RuntimeError(f"Failed to process text '{truncate_string(text, max_length=10)}: {e}")
 
-    def streamProcessImage(self, image: str):
+    def streamProcessImage(
+        self, 
+        image: str,
+        list_of_targets: list[tuple[str, str]] = [
+            TargetMaker.make_target('bpm', 'pcs/min(bpm)'),
+            TargetMaker.make_target('pcs/min', 'pcs/min(orig)')
+        ],
+        version: Version = Version(0, 0, 1),
+        collection_name: str = 'Machine Report'
+    ):
+
+        self.__delete()
+        machine_report_builder = MachineReportBuilder(
+            input=MachineReportInputWrapper(image_path=image),
+            list_of_targets=list_of_targets,
+            version=version
+        )
         print('Processing image...')
         res = {}
         res['process_begins_at'] = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         yield f"data: {{\"progress\": 10, \"msg\": \"Starting image to text...\"}}\n\n"
 
         try:
-            first_stage = self.image_to_unprocessed_text(image)
+            first_stage = machine_report_builder.image_to_unprocessed_text(image)
             res['unprocessed_text'] = first_stage
             yield f"data: {{\"progress\": 70, \"msg\": \"OCR complete. Normalizing text...\"}}\n\n"
 
-            second_stage = self.unprocessed_to_processed_text(first_stage)
+            second_stage = machine_report_builder.unprocessed_to_processed_text(first_stage)
             res['processed_text'] = second_stage
-
             yield f"data: {{\"progress\": 85, \"msg\": \"Text normalized. Building report...\"}}\n\n"
 
+            third_stage = machine_report_builder.processed_text_to_machine_report(
+                machine_report_builder.machine_report_handler.targets,
+                second_stage
+            )
 
-            targets = [
-                TargetMaker.make_target('bpm', 'pcs/min(bpm)'),
-                TargetMaker.make_target('pcs/min', 'pcs/min(orig)')
-            ]
-            third_stage = self.processed_text_to_machine_report(targets, second_stage)
             yield f"data: {{\"progress\": 90, \"msg\": \"Finalizing machine report...\"}}\n\n"
-            if not third_stage:
-                raise ValueError('Cannot generate machine report within the processed text')
+            
+            # if not third_stage and 0 or 'id_info' not in third_stage:
+            #     raise ValueError('Cannot generate machine report within the processed text')
+
             res['machine_report'] = third_stage
-
             res['process_ends_at'] = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            res['version'] = Version(0, 0, 1).__str__()
+            res['version'] = str(machine_report_builder.version)
 
-            self.__addMetadataToBeCached('result', {**res})
-            self.__createMachineReport({**res}, 'Machine Report')
+            self.__createMachineReport(res, collection_name)
 
-            yield f"data: {{\"progress\": 100, \"msg\": \"Done\", \"data\": {self.__dataToDict('source', 'image_path')} }}\n\n"
+            yield f"data: {{\"progress\": 100, \"msg\": \"Done\", \"data\": {res} }}\n\n"
         except Exception as e:
             yield f"data: {{\"error\": \"{str(e)}\"}}\n\n"
 

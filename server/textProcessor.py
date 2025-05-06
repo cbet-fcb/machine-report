@@ -2,11 +2,6 @@ import re
 from typing import List, Dict, Tuple
 from rapidfuzz import process, fuzz
 
-import re
-from typing import List, Tuple, Dict
-from rapidfuzz import fuzz, process
-
-
 class IDExtractor:
     def __init__(self):
         self.known_ids = {f"Machine {i}" for i in range(1, 14)}

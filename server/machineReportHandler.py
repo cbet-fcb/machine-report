@@ -1,32 +1,48 @@
 from pydantic import BaseModel, Field
-from utils import *
-from typing import List, Dict
+from typing import List, Dict, Tuple
+from utils import generateRandomString
 
-from objects import MachineReport
+class MachineReport(BaseModel):
+    id: str = Field(default_factory=generateRandomString, alias="_id")
+    targets: List[Tuple[str, str]] = Field(default_factory=lambda: [], description="Find the target as value pair")
 
 class MachineReportHandler(MachineReport):
-    def does_targets_exist(self) -> List[str]:
+    def add_targets(self, target_or_targets: List[Tuple[str, str]]):
+        self.targets.extend(target_or_targets)
+
+    def does_targets_exist(self, nlp_output: dict) -> List[str]:
         found = []
         for unit, alias in self.targets:
-            if any(p['unit'] == unit for p in self.nlp_output.get('unit_info', {}).get('unit_pairs', [])):
+            if any(p['unit'] == unit for p in self._get_unit_pair(nlp_output)):
                 found.append(alias)
         return found
 
-    def get_unit_pair(self) -> List[Dict[str, str]]:
-        return self.input.get("unit_info", {}).get("unit_pairs", [])
+    @staticmethod
+    def _get_unit_pair(nlp_output: dict) -> List[Dict[str, str]]:
+        return nlp_output.get("unit_info", {}).get("unit_pairs", [])
 
-    def get_value(self) -> List[str]:
-        return [p['value'] for p in self.get_unit_pair()]
+    @staticmethod
+    def _get_id_pair(nlp_output: dict) -> Dict[str, str]:
+        ids_info = nlp_output.get('ids_info')
+        if ids_info is None:
+            raise ValueError('Cannot find ids_info')
+        return ids_info
 
-    def generate_machine_report(self) -> Dict[str, Dict]:
+    def get_value(self, nlp_output: dict) -> List[str]:
+        return [p['value'] for p in self._get_unit_pair(nlp_output)]
+
+    def generate_machine_report(self, nlp_output: dict) -> Dict[str, Dict]:
+        if "unit_info" not in nlp_output or "ids_info" not in nlp_output:
+            raise ValueError("Missing required keys: 'unit_info' and/or 'ids_info' in input.")
+
         result = {}
         for unit, alias in self.targets:
-            for pair in self.get_unit_pair():
+            for pair in self._get_unit_pair(nlp_output):
                 if pair["unit"] == unit:
                     result[alias] = pair
                     break
-        
-        result['machine_number'] = self.input['ids_info']['id_matches'] if self.input['ids_info']['id_matches'] else 'None' 
-        self.output = result
+
+        ids_info = self._get_id_pair(nlp_output)
+        result['machine_number'] = ids_info.get('id_matches') if ids_info.get('id_matches') else 'None'
+
         return result
-    pass

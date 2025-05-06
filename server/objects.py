@@ -12,7 +12,11 @@ import cv2
 import base64
 import re
 
-db = mongoDb()
+from imageHandler import ImageHandler
+from ocr import OCREngine
+from nlp import NLPEngine
+from textProcessor import Normalizer, TextProcessor
+from machineReportHandler import MachineReportHandler
 
 class Version:
     def __init__(self, major: int, minor: int, patch: int):
@@ -32,18 +36,16 @@ class Version:
         except ValueError:
             raise ValueError(f"Invalid version string: '{version}'. Expected format: 'X.Y.Z'")
 
-CURRENT_VERSION = Version(0, 0, 1)
-
 #  MACHINE REPORT BUILDER
 #       IMAGE(INPUT STREAM)
 #           ||
 #          \  /
 #           \/
-#          OCR (CAN BE SKIP) # Flag
+#          OCR
 #           ||
 #          \  /
 #           \/
-#        NORMALIZER (CAN BE SKIP) # Flag
+#        NORMALIZER 
 #           ||
 #          \  /
 #           \/
@@ -52,6 +54,10 @@ CURRENT_VERSION = Version(0, 0, 1)
 #          \  /
 #           \/
 #      TEXTPROCESSOR
+#           ||
+#          \  /
+#           \/
+#     MACHINE REPORT
 #           ||
 #          \  /
 #           \/
@@ -67,93 +73,101 @@ class TargetMaker:
             raise ValueError('Unit name or alias must not be empty')
         return unit_name, alias or unit_name
 
-class MachineReport(BaseModel):
-    id: str = Field(default_factory=generateRandomString, alias="_id", )
-    targets: List[Tuple[str, str]] = Field(..., description="Find the target as value pair")
-    input: Dict[str, Any] = Field(..., description="Input as output of NLP")
-    output: Dict[str, Any] = Field(default_factory=dict, description="Output as Machine Report")
-
-    @field_validator('input')
-    @classmethod
-    def validate_nlp_output_keys(cls, value):
-        REQUIRED_KEYS = {"unit_info"}
-        missing = REQUIRED_KEYS - value.keys()
-        if missing:
-            raise ValueError(f"Missing required NLP keys: {missing}")
-        return value
-
-    
-    
 class MachineReportInputWrapper(BaseModel):
     image_path : str = Field(default=None, description="supports Path, url")
     raw_text: str = Field(default=None, descriptions="Raw text") 
 
     def provide_flag(self) -> dict[str, bool]:
-        """
-        Automatically sets the flags for members that has value in it
-        """
         return {k: v is not None for k, v in vars(self).items()}
 
 class MachineReportBuilder:
-    def __init__(self, input: MachineReportInputWrapper, list_of_targets: list[tuple[str, str]]):
+    def __init__(
+        self, 
+        input: MachineReportInputWrapper, 
+        list_of_targets: list[tuple[str, str]],
+        version: Version = Version(0, 0, 1),
+        image_handler: Optional[ImageHandler] = None, 
+        ocr_engine: Optional[OCREngine] = None,
+        nlp_engine: Optional[NLPEngine] = None,
+        normalizer: Optional[Normalizer] = None,
+        text_processor: Optional[TextProcessor] = None,
+        machine_report_handler: Optional[MachineReportHandler] = None,
+    ):
         self.input_wrapper = input
-        self.flags = input.provide_flag()
-        self.targets = list_of_targets
+        self.flags = self.input_wrapper.provide_flag()
+        if not any(self.flags.values()):
+            raise ValueError("Either 'image_path' or 'raw_text' must be provided.")
 
-    @staticmethod
-    def image_to_unprocessed_text(image_path: str) -> str:
-        """
-        CONVERT IMAGE TO RAW TEXT (text might be joined inappropriately)
-        """
-        from ocr import OCREngine
-        from imageHandler import ImageHandler
         
-        image_handler = ImageHandler(path=image_path)
-        image_array = image_handler.load_image()
+        self.version = version
+        if self.flags.get('image_path'):
+            self.ocr_engine = ocr_engine or OCREngine()
+            self.image_handler = image_handler or ImageHandler()
+        self.nlp_engine = nlp_engine or NLPEngine()
+        self.normalizer = normalizer or Normalizer()
+        self.text_processor = text_processor or TextProcessor()
+        self.machine_report_handler = machine_report_handler or MachineReportHandler()
+        
+        if not list_of_targets:
+            raise ValueError('Must have targets') 
+        self.machine_report_handler.add_targets(list_of_targets)
+
+    def image_to_unprocessed_text(self, image_path: str) -> str:
+        """
+        Converts an image to raw OCR text. The raw text may have inappropriate joins, 
+        hence the naming (unprocessed).
+
+        Args:
+            image_path (str): The path to the image file to be processed.
+
+        Returns:
+            str: The raw OCR text extracted from the image.
+
+        Raises:
+            ValueError: If the image path is empty, the image fails to load, 
+                        or OCR processing fails.
+        """
+        if not image_path.strip():
+            raise ValueError('Image path must have a value in it')
+            
+        image_array = self.image_handler.load_image(image_path)
         if not image_array.any():
             raise ValueError(f'Processing {truncate_string(image_path)} to an image array failed')
         
-        res = OCREngine().run_ocr(image_array=image_array)
+        res = self.ocr_engine.run_ocr(image_array=image_array)
         if not res:
             raise ValueError('Processing image array to unprocessed text failed')
         
         return res
 
-    @staticmethod
-    def unprocessed_to_processed_text(text: str) -> dict:
+    def unprocessed_to_processed_text(self, text: str) -> dict:
         """
-        CONVERT RAW TEXT TO PROCESSED TEXT (separation exists)
+        CONVERT RAW TEXT TO PROCESSED TEXT (separating joined text happens here)
         """
-        from textProcessor import Normalizer
-        from nlp import NLPEngine
-
         if not text:
             raise ValueError('Text should not be empty')
-        lower_cased_text = Normalizer().convert_ocr_result_alphabets_to_small_letter(text)
+        lower_cased_text = self.normalizer.convert_ocr_result_alphabets_to_small_letter(text)
         
-        processed_text = NLPEngine().handle_text(lower_cased_text)
-        if not processed_text:
-            raise ValueError('Processing from lower-cased text to processed-text failed')
+        processed_text = self.nlp_engine.handle_text(lower_cased_text)
+        if not processed_text or not processed_text.get("tokens"):
+            raise ValueError('Processing from lower-cased text to processed text failed or produced empty output')
         
         return processed_text
     
-    @staticmethod
-    def processed_text_to_machine_report(targets: list[tuple[str, str]], nlp_output_as_input: dict[str, any]) -> dict[str, any]:
+    def processed_text_to_machine_report(self, targets: list[tuple[str, str]], nlp_output_as_input: dict[str, any]) -> dict[str, any]:
         """
-        CONVERT PROCESSED TEXT TO MACHINE REPORT (check if target exist then paste it)    
+        CONVERT PROCESSED TEXT TO MACHINE REPORT (get the targets)    
         """
-        from textProcessor import TextProcessor
-        from machineReportHandler import MachineReportHandler
+        if not nlp_output_as_input or 'tokens' not in nlp_output_as_input:
+            raise ValueError("Invalid NLP output: missing required 'tokens' field")
 
-        text_processor = TextProcessor()
-        data = text_processor.process_text(nlp_output=nlp_output_as_input)
+        data = self.text_processor.process_text(nlp_output=nlp_output_as_input)
 
-        mr = MachineReportHandler(targets=targets, input=data)
-
-        return mr.generate_machine_report()
+        return self.machine_report_handler.generate_machine_report(data)
         pass
 
-
+    
+    @deprecated('use image_to_unprocessed_text -> unprocessed_to_processed_text -> processed_text_to_machine_report')
     def process_image(self) -> dict:
         print('Processing image...')
         res = {}
@@ -176,6 +190,7 @@ class MachineReportBuilder:
         print('Done processing image')
         return res
 
+    @deprecated('use unprocessed_to_processed_text -> processed_text_to_machine_report')
     def process_text(self) -> dict:
         print('Processing text...')
 
@@ -198,7 +213,7 @@ class MachineReportBuilder:
         print('Done processing text')
         return res
 
-
+    @deprecated('use image_to_unprocessed_text -> unprocessed_to_processed_text -> processed_text_to_machine_report')
     def build(self) -> list[dict]:
         result = []
         if self.flags.get('raw_text'):
@@ -211,17 +226,4 @@ class MachineReportBuilder:
         return result
 
 if __name__ == '__main__':
-    input = MachineReportInputWrapper(image_path='test/test41.jpg', raw_text='400 pcs/min  asdoadjiowaosd iasdiawjid machne 1')
-    mrb = MachineReportBuilder(
-        input=input,
-        list_of_targets=[
-            TargetMaker.make_target("pcs/min"),
-            TargetMaker.make_target("bpm", "bpm to pcs/min")
-        ]
-    )
-    res = mrb.build()
-    raw_text_output = res[0]
-    image_path_output = res[1]
-    print("Raw text: ", raw_text_output.get('machine_report'), "\n")
-    print("Image path: ",image_path_output.get('machine_report'))
     pass
