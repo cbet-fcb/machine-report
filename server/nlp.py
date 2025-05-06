@@ -37,10 +37,12 @@ class NLPEngine:
     def handle_text(self, text: str) -> dict:
         doc = self.nlp(text)
 
+        tokens = [token.text for token in doc]
         entities = [(ent.text, ent.label_) for ent in doc.ents]
 
         return {
-            "tokens": [token.text for token in doc],
+            "tokens": tokens,
+            "entities": entities,
         }
 
 if __name__ == '__main__':

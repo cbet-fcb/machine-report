@@ -16,8 +16,30 @@ from utils import *
 from imageHandler import ImageHandler
 
 class OCREngine:
-    def __init__(self):
-        self.ocr_engine = PaddleOCR(use_angle_cls=True, lang='en', debug=False, show_log=False)
+    def __init__(self, paddle_ocr_instance: Optional[PaddleOCR] = None):
+        """
+        A wrapper around the PaddleOCR engine to run OCR on image arrays.
+
+        This class uses PaddleOCR with angle classification enabled and English language support.
+
+        Side Effects:
+        -------------
+        - On the first run, PaddleOCR will automatically download pretrained detection and recognition models 
+        to the default cache directory (typically ~/.paddleocr or ~/.paddle).
+        - This behavior can be controlled by explicitly passing model directories via `det_model_dir` and `rec_model_dir`.
+
+        Notes:
+        ------
+        - To eliminate download behavior in production environments or tests, consider pre-downloading the models 
+        and pointing PaddleOCR to the correct paths.
+        - All inputs must be numpy image arrays (e.g., as returned by cv2 or PIL).
+
+        Example:
+        --------
+            ocr = OCREngine()
+            text = ocr.run_ocr(image_array)
+        """
+        self.ocr_engine = paddle_ocr_instance or PaddleOCR(use_angle_cls=True, lang='en', show_log=False)
 
     def run_ocr(self, image_array: Any) -> str:
         """
@@ -36,19 +58,15 @@ class OCREngine:
         """
         extracted_text = []
 
-        # Loop through each line in the OCR result
         for line in ocr_result:
             for word_info in line:
                 text = word_info[1][0]  # Extracting the text from the tuple (coordinates, (text, confidence))
 
-                # Ensure text is a string before appending it
                 if isinstance(text, str):
                     extracted_text.append(text)
                 else:
-                    # If text is not a string, convert it to a string or handle it accordingly
                     extracted_text.append(str(text))
 
-        # Join the text into a single string, separated by spaces
         return " ".join(extracted_text)
 
 if __name__ == '__main__':
