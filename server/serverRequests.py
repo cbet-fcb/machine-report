@@ -99,8 +99,12 @@ class ReportActions:
         ],
         version: Version = Version(0, 0, 1),
         collection_name: str = 'Machine Report',
-        monitoring_cname: str = 'Monitoring'
+        monitoring_cname: str = 'Monitoring',
+        test_flag: bool = True
     ):
+        if test_flag:
+            self.__delete()
+        
         machine_report_builder = MachineReportBuilder(
             input=MachineReportInputWrapper(image_path=image),
             list_of_targets=list_of_targets,
@@ -123,7 +127,7 @@ class ReportActions:
             
             res['unprocessed_text'] = change_leading_zero
             second_stage = machine_report_builder.unprocessed_to_processed_text(change_leading_zero)
-            yield f"data: {{\"data\": {json.dumps(second_stage['tokens'])}}}"
+            yield f"data: {{\"progress\": 80, \"msg\": \"Separation of text has been successful\"}}\n\n"
             
             res['processed_text'] = second_stage
 
@@ -150,7 +154,7 @@ class ReportActions:
             cache_allowing_feedback = probability_generator(failure_rate=95)
             res['allow_feedback'] = cache_allowing_feedback
 
-            final = self._generate_final_report(cache_allowing_feedback, third_stage, list_of_targets, version.__str__())
+            final = self._generate_final_report(cache_allowing_feedback, third_stage, list_of_targets, version.__str__(), monitoring_cname)
 
             # Final Report Creation
             self.__createMachineReport(final, collection_name)
@@ -180,10 +184,10 @@ class ReportActions:
                 missing_keys.append(f"{unit} or {alias}")
         return missing_keys
 
-    def _generate_final_report(self, cache_allowing_feedback, third_stage, list_of_targets, version):
+    def _generate_final_report(self, cache_allowing_feedback, third_stage, list_of_targets, version, monitoring_collection_name):
         final = {}
         if cache_allowing_feedback:
-            self.__createMachineReport(third_stage, 'Monitoring')
+            self.__createMachineReport(third_stage)
             final = third_stage
         else:
             final['machine-number'] = third_stage.get('machine_number')
