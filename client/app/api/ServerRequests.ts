@@ -50,6 +50,8 @@ class ServerRequests extends Server {
 
         readStream();
 
+        console.log("response,", res)
+
         return res.text();
       })
       .catch((err) => {
