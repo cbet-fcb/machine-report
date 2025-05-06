@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { th } from "framer-motion/client";
 import Server from "./Server";
 
 class ServerRequests extends Server {
@@ -10,34 +11,49 @@ class ServerRequests extends Server {
     const formData = new FormData();
     formData.append("file", file);
 
-    // First, upload the file using POST
-    fetch(`${this.apiUrl}/upload`, {
+    fetch(`${this.apiUrl}/streamProcessImage`, {
       method: "POST",
       body: formData,
     })
-      .then(() => {
-        // Then, listen for progress using SSE
-        const eventSource = new EventSource(
-          `${this.apiUrl}/streamProcessImage`
-        );
+      .then((res) => {
+        const reader = res.body?.getReader();
+        const decoder = new TextDecoder("utf-8");
 
-        eventSource.onmessage = (event) => {
-          const parsed = JSON.parse(event.data);
-          onMessage(parsed);
+        let buffer = "";
 
-          // Optionally close when complete
-          if (parsed.progress === 100) {
-            eventSource.close();
-          }
-        };
+        function readStream() {
+          if (!reader) return;
 
-        eventSource.onerror = (err) => {
-          console.error("SSE error:", err);
-          eventSource.close();
-        };
+          reader.read().then(({ done, value }) => {
+            if (done) return;
+
+            buffer += decoder.decode(value, { stream: true });
+
+            const parts = buffer.split("\n\n");
+            buffer = parts.pop() || "";
+
+            for (const part of parts) {
+              if (part.startsWith("data: ")) {
+                const jsonStr = part.slice(6).trim();
+                try {
+                  const data = JSON.parse(jsonStr);
+                  onMessage(data);
+                } catch (e) {
+                  console.error("Invalid JSON:", jsonStr);
+                }
+              }
+            }
+
+            readStream();
+          });
+        }
+
+        readStream();
+
+        return res.text();
       })
       .catch((err) => {
-        console.error("Upload error:", err);
+        console.error("Upload/stream error:", err);
       });
   }
 }

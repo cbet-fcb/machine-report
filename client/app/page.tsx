@@ -36,7 +36,6 @@ export default function Home() {
   ) => {
     setLoading(true);
     const file = event.target.files?.[0];
-    console.log(file)
     if (file) {
       const reader = new FileReader();
       reader.onloadend = () => {
@@ -45,7 +44,7 @@ export default function Home() {
       reader.readAsDataURL(file);
 
       server.streamProcessImage(file, (data) => {
-        console.log("Progress:", data.progress);
+        console.log("Progress:", data); 
       });
     }
     setLoading(false);
