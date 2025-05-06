@@ -4,6 +4,13 @@ import datetime
 import warnings
 import functools
 
+from bson import ObjectId  # only if you're checking type explicitly
+
+def convert_objectid(obj):
+    if isinstance(obj, ObjectId):
+        return str(obj)
+    raise TypeError(f"Type {type(obj)} not serializable")
+
 def deprecated(reason: str):
     def decorator(func):
         @functools.wraps(func)

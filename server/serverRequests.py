@@ -116,13 +116,18 @@ class ReportActions:
 
             res['machine_report'] = third_stage
             res['process_ends_at'] = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            res['version'] = str(machine_report_builder.version)
+            res['version'] = machine_report_builder.version.__str__()
 
             self.__createMachineReport(res, collection_name)
 
-            yield f"data: {{\"progress\": 100, \"msg\": \"Done\", \"data\": {res} }}\n\n"
+            payload = {
+                "progress": 100,
+                "msg": "Done",
+                "data": res
+            }
+            yield f"data: {json.dumps(payload, default=convert_objectid)}"
         except Exception as e:
-            yield f"data: {{\"error\": \"{str(e)}\"}}\n\n"
+            yield f'data: {{\"error\": \"{str(e)}\"}}\n\n'
 
 
 
