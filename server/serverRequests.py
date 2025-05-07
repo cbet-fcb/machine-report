@@ -38,8 +38,6 @@ class MonitoringActions:
         
         return f'{SYSTEM_MESSAGE} will follow up on that. If this happens once again to you, please Thank you for your feedback.'
 
-        
-
 class ReportActions:
     def __init__(self, MAX_DOCUMENTS_TO_BE_STORED = 50):
         self.MAX_DOCUMENTS_TO_BE_STORED = MAX_DOCUMENTS_TO_BE_STORED
@@ -121,7 +119,7 @@ class ReportActions:
             raise RuntimeError(f"Failed to process text '{truncate_string(text, max_length=10)}: {e}")
 
     def streamProcessImage(
-        self, 
+        self,
         image: str,
         list_of_targets: list[tuple[str, str]] = [
             TargetMaker.make_target('p', 'pcs/min'),
@@ -131,9 +129,10 @@ class ReportActions:
         version: Version = Version(0, 0, 1),
         collection_name: str = 'Machine Report',
         monitoring_cname: str = 'Monitoring',
-        test_flag: bool = True
+        test_flag: bool = False
     ):
         if test_flag:
+            yield f"data: {{\"devmode\": \"enabled\", \"msg\": \"Deleting all data\"}}\n\n"
             self.__delete()
             self.__delete(collection_name=monitoring_cname)
         
@@ -144,7 +143,7 @@ class ReportActions:
         )
 
         print('Processing image...')
-        res = self._initialize_process_data()
+        res = self._initialize_process_data('process_begins_at')
 
         yield f"data: {{\"progress\": 10, \"msg\": \"Starting image to text...\"}}\n\n"
 
@@ -152,51 +151,70 @@ class ReportActions:
             #******************************
             # Stage 1: OCR Processing   ***
             #******************************
+            
+            
             first_stage = machine_report_builder.image_to_unprocessed_text(image)
             yield f"data: {{\"progress\": 60, \"msg\": \"OCR complete. Normalizing text...\"}}\n\n"
 
+            
             #******************************
             # Stage 1.1: Normalization  ***
             #******************************
+            
+            
+            
             change_leading_zero = machine_report_builder.normalizer.fix_leading_O_in_text(first_stage, list_of_targets)
+            res['unprocessed_text'] = change_leading_zero
             yield f"data: {{\"progress\": 70, \"msg\": \"Cleaning up potential errors\"}}\n\n"
 
-            res['unprocessed_text'] = change_leading_zero
+
 
             #******************************
             # Stage 2: NLP              ***
             #******************************
+
+
+
             second_stage = machine_report_builder.unprocessed_to_processed_text(change_leading_zero)
+            res['processed_text'] = second_stage
             yield f"data: {{\"progress\": 80, \"msg\": \"Separation of text has been successful\"}}\n\n"
 
-            res['processed_text'] = second_stage
+
 
             #******************************
             # Stage 3: Machine Report   ***
             #******************************
+
+
+
             third_stage = machine_report_builder.processed_text_to_machine_report(
                 machine_report_builder.machine_report_handler.targets,
                 second_stage
             )
             if not third_stage:
                 raise ValueError('Cannot generate machine report')
-
             yield f"data: {{\"progress\": 90, \"msg\": \"Finalizing machine report...\"}}\n\n"
-            if not test_flag:
+            
+            if test_flag:
+                yield f"data: {{\"devmode\": \"enabled\", \"msg\": \"Disabling checking of keys\"}}\n\n"
+            else:
                 missing_keys = self._check_missing_keys(list_of_targets, third_stage)
                 if missing_keys:
                     self.__createMachineReport(query={"missing_keys": missing_keys, **res}, collection_name=collection_name)
                     raise ValueError(f'Missing required keys: {", ".join(missing_keys)}')
-            else:
-                yield f"data: {{\"devmode\": \"enabled\", \"msg\": \"Disabling checking of keys\"}}\n\n"
-
+            
             res['machine-report'] = third_stage
-            res['process_ends_at'] = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            res['process_ends_at'] = self._initialize_process_data('process_ends_at')
             res['version'] = machine_report_builder.version.__str__()
+
+
 
             #******************************
             # Feature: Feedback         ***
             #******************************
+
+
+
             # If test flag is set to true then no failure rate 
             failure_rate = 0 if test_flag else (
                 95 and self.MAX_DOCUMENTS_TO_BE_STORED > self.created_documents
@@ -209,10 +227,14 @@ class ReportActions:
             if enable_feedback:
                 self.__createMachineReport(res, monitoring_cname)
 
-            
+
+
             #******************************
             # Last Stage: Final         ***
             #******************************
+
+
+
             final = self._generate_final_report(enable_feedback, third_stage, list_of_targets, version.__str__())
             self.__createMachineReport(final, collection_name)
 
@@ -224,14 +246,19 @@ class ReportActions:
 
             yield f"data: {json.dumps(payload, default=convert_objectid)}\n\n"
 
+
+
+            #******************************
+            # END                       ***
+            #******************************
         except Exception as e:
             yield f'data: {{\"error\": \"{str(e)}\"}}\n\n'
 
 
     # Helper Methods for Cleanliness
-    def _initialize_process_data(self):
+    def _initialize_process_data(self, key: str):
         return {
-            'process_begins_at': datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            key: datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         }
 
     def _check_missing_keys(self, list_of_targets, third_stage):
