@@ -60,7 +60,7 @@ def streamProcessImage():
 
     return jsonify({'error': 'File not allowed'}), 400
 
-@app.route('/feedback', methods=['POST'])
+@app.route('/feedback', methods=['GET'])
 def feedback():
     """
     Input stream for monitoring.

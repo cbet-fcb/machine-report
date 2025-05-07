@@ -8,12 +8,21 @@ class MonitoringActions:
     def __init__(self):
         pass
 
-    def feedback(id: str):
-        pass
+    def feedback(id: str, does_match: bool, collection_name='Feedback', machine_report_monitoring_cname='Monitoring'):
+        machine_report_data = db.read({'_id': convert_str(id)}, machine_report_monitoring_cname)
+        if not machine_report_data:
+            return 'Not found'
+        elif not machine_report_data['allow-feedback'] or does_match:
+            db.delete(query={**machine_report_data}, collection_name=machine_report_monitoring_cname)
+            return ('It matches' if does_match else 'Feedback disabled') + ' so no need to store monitoring data'
+        
+        return 'Thank you for the feedback'
+
+        
 
 class ReportActions:
-    def __init__(self, MAX_DOCUMENTS = 50):
-        self.MAX_DOCUMENTS = MAX_DOCUMENTS
+    def __init__(self, MAX_DOCUMENTS_TO_BE_STORED = 50):
+        self.MAX_DOCUMENTS_TO_BE_STORED = MAX_DOCUMENTS_TO_BE_STORED
         self.created_documents = 0
         pass
     
@@ -22,8 +31,8 @@ class ReportActions:
         pass
 
     def __createMachineReport(self, query: dict, collection_name: str) -> None:
-        if self.created_documents >= self.MAX_DOCUMENTS:
-            print(f'Limit hit at {self.MAX_DOCUMENTS}, discarding incoming query for further processing')
+        if self.created_documents >= self.MAX_DOCUMENTS_TO_BE_STORED:
+            print(f'Limit hit at {self.MAX_DOCUMENTS_TO_BE_STORED}, discarding incoming query for further processing')
             return
         
         try:
@@ -37,6 +46,7 @@ class ReportActions:
         except Exception as e:
             print(f"Error during machine report creation: {e}")
 
+    @deprecated('use streamProcessImage instead')
     def __processDataToMachineReport(self, data: str, type: str, list_of_targets: any) -> list[dict]:
         acceptable_types = ['image', 'text']
 
@@ -51,7 +61,7 @@ class ReportActions:
         builder = MachineReportBuilder(input, list_of_targets)
         return builder.build()
         
-
+    @deprecated('use streamProcessImage instead')
     def processImageToMachineReport(self, image: str) -> Dict[str, Dict]:
         try:
             targets = [
@@ -72,6 +82,7 @@ class ReportActions:
             raise RuntimeError(f"Failed to process image '{image}': {e}")
     pass
 
+    @deprecated('use streamProcessImage instead')
     def processTextToMachineReport(self, text: str) -> Dict[str, Dict]:
         try:
             targets = [
@@ -104,6 +115,7 @@ class ReportActions:
     ):
         if test_flag:
             self.__delete()
+            self.__delete(collection_name=monitoring_cname)
         
         machine_report_builder = MachineReportBuilder(
             input=MachineReportInputWrapper(image_path=image),
@@ -117,29 +129,39 @@ class ReportActions:
         yield f"data: {{\"progress\": 10, \"msg\": \"Starting image to text...\"}}\n\n"
 
         try:
-            # Stage 1: OCR Processing
+            #******************************
+            # Stage 1: OCR Processing   ***
+            #******************************
             first_stage = machine_report_builder.image_to_unprocessed_text(image)
             yield f"data: {{\"progress\": 60, \"msg\": \"OCR complete. Normalizing text...\"}}\n\n"
-            
-            # Stage 2: Normalization
+
+            #******************************
+            # Stage 1.1: Normalization  ***
+            #******************************
             change_leading_zero = machine_report_builder.normalizer.fix_leading_O_in_text(first_stage, list_of_targets)
             yield f"data: {{\"progress\": 70, \"msg\": \"Cleaning up potential errors\"}}\n\n"
-            
+
             res['unprocessed_text'] = change_leading_zero
+
+            #******************************
+            # Stage 2: NLP              ***
+            #******************************
             second_stage = machine_report_builder.unprocessed_to_processed_text(change_leading_zero)
             yield f"data: {{\"progress\": 80, \"msg\": \"Separation of text has been successful\"}}\n\n"
-            
+
             res['processed_text'] = second_stage
 
-            # Stage 3: Generate Machine Report
+            #******************************
+            # Stage 3: Machine Report   ***
+            #******************************
             third_stage = machine_report_builder.processed_text_to_machine_report(
                 machine_report_builder.machine_report_handler.targets,
                 second_stage
             )
-
-            yield f"data: {{\"progress\": 90, \"msg\": \"Finalizing machine report...\"}}\n\n"
             if not third_stage:
                 raise ValueError('Cannot generate machine report')
+
+            yield f"data: {{\"progress\": 90, \"msg\": \"Finalizing machine report...\"}}\n\n"
 
             missing_keys = self._check_missing_keys(list_of_targets, third_stage)
             if missing_keys:
@@ -150,13 +172,18 @@ class ReportActions:
             res['process_ends_at'] = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             res['version'] = machine_report_builder.version.__str__()
 
-            # Handle feedback mechanism
-            cache_allowing_feedback = probability_generator(failure_rate=95)
-            res['allow_feedback'] = cache_allowing_feedback
+            #******************************
+            # Feature: Feedback         ***
+            #******************************
+            failure_rate = 0 if test_flag else (95 and self.MAX_DOCUMENTS_TO_BE_STORED > self.created_documents) # If test flag is set to true then no failure rate 
+            enable_feedback = probability_generator(failure_rate=failure_rate)
+            res['allow_feedback'] = enable_feedback
 
-            final = self._generate_final_report(cache_allowing_feedback, third_stage, list_of_targets, version.__str__(), monitoring_cname)
+            final = self._generate_final_report(enable_feedback, third_stage, list_of_targets, version.__str__(), monitoring_cname)
 
-            # Final Report Creation
+            #******************************
+            # Last Stage: Final         ***
+            #******************************
             self.__createMachineReport(final, collection_name)
 
             payload = {
@@ -182,19 +209,32 @@ class ReportActions:
         for unit, alias in list_of_targets:
             if alias not in third_stage:
                 missing_keys.append(f"{unit} or {alias}")
+        
+        if third_stage.get('machine_number') == 'None':
+            missing_keys.append("machine-number") 
+        
         return missing_keys
 
-    def _generate_final_report(self, cache_allowing_feedback, third_stage, list_of_targets, version, monitoring_collection_name):
+    def _generate_final_report(
+            self, 
+            enable_feedback: bool, 
+            third_stage: any, 
+            list_of_targets: list[tuple[str, str]], 
+            version: Version, 
+            monitoring_collection_name: str
+        ):
         final = {}
-        if cache_allowing_feedback:
-            self.__createMachineReport(third_stage)
+        if enable_feedback:
+            self.__createMachineReport(third_stage, monitoring_collection_name)
             final = third_stage
         else:
             final['machine-number'] = third_stage.get('machine_number')
             for unit, alias in list_of_targets:
                 final[alias] = third_stage.get(alias)
-            final['allow-feedback'] = cache_allowing_feedback
-            final['version'] = version
+        
+        final['allow-feedback'] = enable_feedback
+        final['version'] = version
+        
         return final
 
 
