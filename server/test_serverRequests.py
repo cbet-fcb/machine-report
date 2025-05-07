@@ -3,7 +3,7 @@ import pytest
 import requests
 import json
 
-test_dir = "test/machine12"
+test_dir = "test/machine3"
 
 @pytest.mark.parametrize("image_file", [
     f for f in os.listdir(test_dir) if f.endswith('.jpg')
@@ -33,7 +33,6 @@ def test_stream_process_image(image_file):
                 if "error" in json_data:
                     error_found = True
                 if json_data.get("progress") == 100 or "done" in json_data.get("msg", "").lower():
-                    progress_done_found = True
                     final_data = json_data.get("data", {})
 
                 if "progress" in json_data:
