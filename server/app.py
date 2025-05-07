@@ -77,12 +77,12 @@ def feedback():
     if not feedback:
         return jsonify({'error': 'Feedback cannot be undefined'}), 400
 
-    id = data.get('_id')
+    machine_report_id = data.get('_id')
     if not id:
         return jsonify({'error': 'Id cannot be undefined'})
 
     res['picture_and_output_matches'] = feedback
-    res['_id'] = id
+    res['_id'] = machine_report_id
 
     message = sr.feedback(id, feedback)
     return jsonify({'message': message, 'data': res}), 200

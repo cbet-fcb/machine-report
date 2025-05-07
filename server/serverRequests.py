@@ -232,15 +232,14 @@ class ReportActions:
             'process_begins_at': datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         }
 
-    def _check_missing_keys(self, list_of_targets, third_stage, test_flag: bool):
+    def _check_missing_keys(self, list_of_targets, third_stage):
         missing_keys = []
-        if not test_flag:
-            for unit, alias in list_of_targets:
-                if alias not in third_stage:
-                    missing_keys.append(f"{unit} or {alias}")
-            
-            if third_stage.get('machine_number') == 'None':
-                missing_keys.append("machine-number") 
+        for unit, alias in list_of_targets:
+            if alias not in third_stage:
+                missing_keys.append(f"{unit} or {alias}")
+        
+        if third_stage.get('machine_number') == 'None':
+            missing_keys.append("machine-number") 
 
         return missing_keys
 
