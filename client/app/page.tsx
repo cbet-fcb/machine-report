@@ -24,6 +24,10 @@ interface ocrResult {
   [key: string]: OcrValue | string | number | undefined;
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export default function Home({}): React.JSX.Element {
   const server = new ServerRequests();
 
@@ -40,6 +44,9 @@ export default function Home({}): React.JSX.Element {
   const [uploadedImage, setUploadedImage] = React.useState<string | null>(null);
   const [expanded, setExpanded] = React.useState(false);
 
+  const [allowFeedback, setAllowFeedback] = React.useState(true);
+  const [showFeedback, setShowFeedback] = React.useState(false);
+
   const handleImageUpload = async (
     event: React.ChangeEvent<HTMLInputElement>
   ) => {
@@ -54,22 +61,23 @@ export default function Home({}): React.JSX.Element {
 
       server.streamProcessImage(file, (data) => {
         setProgressData(data);
-        console.log("progressData", data);
         if (data?.error) {
           setLoading(false);
           setProgressData({
             progress: 0,
             msg: "Error: " + data.error,
           });
+          console.log(data.error);
           alert("Error Image ");
         }
         if (data?.data && data?.progress === 100) {
-          setOcrData(data.data.machine_report);
+          setOcrData(data.data);
           setLoading(false);
           setProgressData({
             progress: 0,
             msg: "...",
           });
+          // setAllowFeedback(data?.data?.["allow-feedback"] || false);
         }
       });
       setLoading(false);
@@ -160,42 +168,62 @@ export default function Home({}): React.JSX.Element {
         </div>
       </div>
 
+      {showFeedback && (
+        <div
+          className={`fixed inset-0 bg-black/80 z-50 justify-center flex items-center transition-all duration-300`}
+        >
+          <div className="bg-base-100 w-max p-6 rounded-box flex flex-col gap-3">
+            <p className="w-max text-center">
+              Do the results matches the picture?
+            </p>
+            <div className="w-full flex justify-evenly">
+              <button className="btn btn-outline">No</button>
+              <button className="btn btn-primary">Yes</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="w-[95vw] flex flex-col md:flex-row items-center justify-center gap-10 py-10 mb-auto">
         {uploadedImage && !loading && (
           <div className="h-full w-full md:w-[46%]">
-            <div className="w-full rounded-box border overflow-clip">
-              <div className="bg-base-200 w-full h-12 border-b flex items-center justify-center tracking-widest">
+            <div className="w-full rounded-box border overflow-clip relative">
+              {allowFeedback && (
+                <button
+                  onClick={() => setShowFeedback(true)}
+                  className="absolute btn btn-info btn-outline btn-xs btn-circle top-2 right-2"
+                >
+                  ?
+                </button>
+              )}
+              <div className="bg-base-200 w-full h-10 border-b flex items-center justify-center tracking-widest text-xs">
                 {" "}
                 {String(
-                  ocrData?.machine_number == "None"
+                  ocrData?.["machine-number"] == "None"
                     ? ""
-                    : ocrData?.machine_number
+                    : ocrData?.["machine-number"]
                 )}{" "}
                 Results{" "}
               </div>
               <table className="table text-center ">
                 <tbody>
-                  {Object.entries(ocrData || {}).map(([key, value]) => {
-                    if (key === "machine_number") {
-                      return null; // Skip the machine_number entry
-                    }
-                    return (
-                      <tr key={key} className="hover">
-                        <td className="text-base-content font-light text-sm">
-                          {key}
-                        </td>
-                        <td className="text-base-content font-light text-sm">
-                          {typeof value === "object" &&
-                          value !== null &&
-                          "value" in value
-                            ? `${(value as OcrValue).value} ${
-                                (value as OcrValue).unit || ""
-                              }`
-                            : value}
-                        </td>
-                      </tr>
-                    );
-                  })}
+                  {" "}
+                  <tr className="hover">
+                    <td className="text-base-content font-light text-sm">
+                      pcs/min
+                    </td>
+                    <td className="text-base-content font-light text-sm">
+                      {typeof ocrData?.["pcs/min"] === "object" &&
+                      "value" in ocrData["pcs/min"] ? (
+                        <>
+                          {String(ocrData["pcs/min"].value)} 
+                          {String(ocrData["pcs/min"].unit)}
+                        </>
+                      ) : (
+                        String(ocrData?.["pcs/min"])
+                      )}
+                    </td>
+                  </tr>
                 </tbody>
               </table>
             </div>
