@@ -15,60 +15,62 @@ from utils import *
 
 from imageHandler import ImageHandler
 
+from collections import defaultdict
+from typing import Optional, Any, Tuple
+
 class OCREngine:
     def __init__(self, paddle_ocr_instance: Optional[PaddleOCR] = None):
         """
         A wrapper around the PaddleOCR engine to run OCR on image arrays.
 
         This class uses PaddleOCR with angle classification enabled and English language support.
-
-        Side Effects:
-        -------------
-        - On the first run, PaddleOCR will automatically download pretrained detection and recognition models 
-        to the default cache directory (typically ~/.paddleocr or ~/.paddle).
-        - This behavior can be controlled by explicitly passing model directories via `det_model_dir` and `rec_model_dir`.
-
-        Notes:
-        ------
-        - To eliminate download behavior in production environments or tests, consider pre-downloading the models 
-        and pointing PaddleOCR to the correct paths.
-        - All inputs must be numpy image arrays (e.g., as returned by cv2 or PIL).
-
-        Example:
-        --------
-            ocr = OCREngine()
-            text = ocr.run_ocr(image_array)
         """
         self.ocr_engine = paddle_ocr_instance or PaddleOCR(use_angle_cls=True, lang='en', show_log=False)
 
     def run_ocr(self, image_array: Any) -> str:
         """
-        Run ocr engine
+        Run OCR engine and group text into lines.
         """
         ocr_res = self.ocr_engine.ocr(image_array, cls=True)
-        
         return self.process_ocr_output(ocr_res)
-        
+
     def process_ocr_output(self, ocr_result: list) -> str:
         """
-        Process the raw OCR output to prepare text for NLP tasks.
-        - Extract text
-        - Clean up unwanted characters
-        - Combine the text into a single string
+        Process the raw OCR output to group text by lines.
         """
-        extracted_text = []
+        grouped_lines = self.group_text_lines(ocr_result)
+        
+        # For example, join the text for each line
+        grouped_text = " ".join([" ".join([word["text"] for word in line["words"]]) for line in grouped_lines])
+        
+        return grouped_text
 
-        for line in ocr_result:
-            for word_info in line:
-                text = word_info[1][0]  # Extracting the text from the tuple (coordinates, (text, confidence))
+    def group_text_lines(self, results, y_threshold=10):
+        """
+        Group OCR word boxes into text lines and return a structured list of lines.
 
-                if isinstance(text, str):
-                    extracted_text.append(text)
-                else:
-                    extracted_text.append(str(text))
+        results[0]: iterable of (box, (text, confidence))
+        y_threshold: max vertical distance to group words into same line
+        Returns: list of dicts {"line_number": int, "words": [{"text": str, "confidence": float}, ...]}
+        """
+        lines = defaultdict(list)
 
-        return " ".join(extracted_text)
+        # Group words based on their vertical position (y-axis)
+        for box, (text, confidence) in results[0]:
+            center_y = int(sum(pt[1] for pt in box) / 4.0)
+            matched_key = next((k for k in lines if abs(k - center_y) <= y_threshold), None)
+            key = matched_key if matched_key is not None else center_y
+            lines[key].append({"text": text, "confidence": round(confidence, 4)})
+
+        # Sort by vertical position and return as structured lines
+        grouped_lines = []
+        for idx, (_, words) in enumerate(sorted(lines.items(), key=lambda x: x[0]), start=1):
+            grouped_lines.append({"line_number": idx, "words": words})
+
+        return grouped_lines
 
 if __name__ == '__main__':
-    test = OCREngine(path="test1.png")
-    print(str(test.run_ocr()))
+    test = OCREngine()
+    test_image = "test1.png"
+    image = cv2.imread(test_image)
+    print(test.run_ocr(image))

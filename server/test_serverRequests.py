@@ -1,49 +1,53 @@
 import os
-import json
 import pytest
-from serverRequests import ServerRequests
+import requests
+import json
 
-test_dir = os.path.join(os.path.dirname(__file__), 'test')
-sr = ServerRequests()
-
-def load_groundtruth(image_file):
-    base_name = os.path.splitext(image_file)[0]
-    json_file = f"{base_name}_groundtruth.json"
-    json_path = os.path.join(test_dir, json_file)
-
-    if not os.path.exists(json_path):
-        return None
-
-    with open(json_path, 'r') as f:
-        return json.load(f)
+test_dir = "test/machine12"
 
 @pytest.mark.parametrize("image_file", [
     f for f in os.listdir(test_dir) if f.endswith('.jpg')
 ])
-def test_process_stream_image(image_file):
-    pass
+def test_stream_process_image(image_file):
+    url = "http://localhost:5000/streamProcessImage"
+    filepath = os.path.join(test_dir, image_file)
+    
+    with open(filepath, 'rb') as f:
+        files = {'file': (image_file, f, 'image/jpeg')}
+        response = requests.post(url, files=files, stream=True)
 
-# def test_machine_report_output_without_id(image_file):
-#     image_path = os.path.join(test_dir, image_file)
-#     groundtruth = load_groundtruth(image_file)
+        assert response.status_code == 200
 
-#     if groundtruth is None:
-#         pytest.skip(f"No ground truth for {image_file}")
+        error_found = False
+        progress_done_found = False
+        progress_updates = []
+        final_data = None
 
-#     result = sr.processImageToMachineReport(image_path)
+        for line in response.iter_lines(decode_unicode=True):
+            if not line or not line.startswith("data:"):
+                continue
+            try:
+                # Properly parse JSON; eval can be unsafe
+                json_data = json.loads(line[5:].strip())
 
-#     for key in ['bpm-pcs/min', 'pcs/min']:
-#         gt_entry = groundtruth.get(key)
-#         result_entry = result.get(key)
+                if "error" in json_data:
+                    error_found = True
+                if json_data.get("progress") == 100 or "done" in json_data.get("msg", "").lower():
+                    progress_done_found = True
+                    final_data = json_data.get("data", {})
 
-#         if gt_entry and result_entry:
-#             gt_value = gt_entry.get('value')
-#             result_value = result_entry.get('value')
+                if "progress" in json_data:
+                    progress_updates.append(json_data["progress"])
 
-#             assert float(result_value) == float(gt_value), (
-#                 f"Mismatch for {key} in {image_file}: expected {gt_value}, got {result_value}"
-#             )
-#         else:
-#             assert gt_entry is None and result_entry is None, (
-#                 f"Expected no data for {key} in {image_file}, but got result={result_entry} or groundtruth={gt_entry}"
-#             )
+            except Exception:
+                continue
+
+        assert not error_found, "Error was returned in the stream"
+        assert progress_updates == [0, 10, 60, 70, 80, 90, 100], "Progress updates are incorrect"
+
+        if final_data and isinstance(final_data, dict):
+            pcs_info = final_data.get("pcs/min", {})
+            unit = pcs_info.get("unit", "")
+            valid_units = {"p", "bpm", "pcs/min"}
+            assert unit.lower() in valid_units, f"Invalid unit '{unit}' detected in final output: {pcs_info}"
+

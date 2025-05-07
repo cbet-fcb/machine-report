@@ -87,6 +87,11 @@ def feedback():
     message = sr.feedback(machine_report_id, feedback)
     return jsonify({'message': message, 'data': res}), 200
 
+@app.route('/deleteTest', methods=['GET'])
+def deleteTest():
+    sr.deleteTest()  # Assume this returns a string or result message
+    return jsonify({"message": "Test deleted"}), 200
+    pass
 
 if __name__ == '__main__':
     if not os.path.exists(UPLOAD_FOLDER):

@@ -37,7 +37,7 @@ class IDExtractor:
             "id_matches": id_matches
         }
 
-    def _label_token(self, token: str) -> Tuple[str, str]:
+    def _label_token(self, token: str) -> Tuple[str, str, str]:
         normalized = self._normalize_token(token)
 
         if normalized == "Machine":
@@ -99,7 +99,7 @@ class UnitExtractor:
             "hz", "l", "ml", "pcs/min", "m/s", "kg/cm²", "mm/s"
         }
         self.learned_units = set()
-        self.similarity_threshold = 50
+        self.similarity_threshold = 75
 
     def extract_units(self, tokens: List[str]) -> Dict:
         unit_pairs = []
@@ -214,7 +214,7 @@ class Normalizer:
     def __init__(self):
         pass
 
-    def fix_leading_O_in_text(self, text: str, targets: list[tuple[str, str]]) -> str:
+    def fix_leading_O_in_text(self, text: str, targets: list[tuple[str, str, str]]) -> str:
         """
         Corrects occurrences where 'O' is incorrectly interpreted as a letter instead of '0'.
         Applies the correction only if the word starts with 'O' followed by a valid unit.

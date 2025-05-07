@@ -13,7 +13,7 @@ class MonitoringActions:
                  does_match: bool, 
                  collection_name: str='Feedback', 
                  machine_report_monitoring_cname: str = 'Monitoring',
-                 test_flag = True
+                 test_flag = False
         ):
         if test_flag:
             db.delete(query={}, collection_name=collection_name)
@@ -129,7 +129,7 @@ class ReportActions:
         version: Version = Version(0, 0, 1),
         collection_name: str = 'Machine Report',
         monitoring_cname: str = 'Monitoring',
-        test_flag: bool = True
+        test_flag: bool = False
     ):
         is_local_dev_env = self.__check_if_env_is_in_local()
         if test_flag and is_local_dev_env:
@@ -159,7 +159,7 @@ class ReportActions:
             first_stage = machine_report_builder.image_to_unprocessed_text(image)
             yield f"data: {{\"progress\": 60, \"msg\": \"OCR complete. Normalizing text...\"}}\n\n"
 
-
+            yield f"data: {{\"data: {json.dumps(first_stage)}}}\n\n"
 
             #******************************
             # Stage 1.1: Normalization  ***
@@ -199,17 +199,18 @@ class ReportActions:
                 raise ValueError('Cannot generate machine report')
             yield f"data: {{\"progress\": 90, \"msg\": \"Finalizing machine report...\"}}\n\n"
             
+            res['machine_report'] = third_stage
+            res['process_ends_at'] = self._initialize_process_data('process_ends_at')
+            res['version'] = machine_report_builder.version.__str__()
+            
             if test_flag:
                 yield f"data: {{\"devmode\": \"enabled\", \"msg\": \"Disabling checking of keys\"}}\n\n"
             else:
                 missing_keys = self._check_missing_keys(list_of_targets, third_stage)
                 if missing_keys:
-                    self.__createMachineReport(query={"missing_keys": missing_keys, **res}, collection_name=collection_name)
+                    self.__createMachineReport(query={"missing_keys": missing_keys, **res}, collection_name=monitoring_cname)
                     raise ValueError(f'Missing required keys: {", ".join(missing_keys)}')
             
-            res['machine_report'] = third_stage
-            res['process_ends_at'] = self._initialize_process_data('process_ends_at')
-            res['version'] = machine_report_builder.version.__str__()
 
 
 
@@ -224,7 +225,7 @@ class ReportActions:
                 95 and self.MAX_DOCUMENTS_TO_BE_STORED > self.created_documents
             )
             enable_feedback = probability_generator(failure_rate=failure_rate)
-            if enable_feedback and test_flag:
+            if test_flag:
                 yield f"data: {{\"devmode\": \"enabled\", \"msg\": \"Feedback enabled\"}}\n\n"
             
             res['allow-feedback'] = enable_feedback
@@ -293,6 +294,10 @@ class ReportActions:
         final['version'] = version
         
         return final
+    
+    def deleteTest(self):
+        self.__delete()
+        self.__delete(collection_name="Monitoring")
 
 
 
