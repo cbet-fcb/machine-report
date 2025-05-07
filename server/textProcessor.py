@@ -1,5 +1,5 @@
 import re
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Optional
 from rapidfuzz import process, fuzz
 
 class IDExtractor:
@@ -99,7 +99,7 @@ class UnitExtractor:
             "hz", "l", "ml", "pcs/min", "m/s", "kg/cm²", "mm/s"
         }
         self.learned_units = set()
-        self.similarity_threshold = 80
+        self.similarity_threshold = 50
 
     def extract_units(self, tokens: List[str]) -> Dict:
         unit_pairs = []
@@ -110,9 +110,12 @@ class UnitExtractor:
             token = tokens[i]
             combined_token = token
 
+            corrected_token = self._fuzzy_correct(combined_token)
             # Try combining next token(s) if they exist
             if i + 2 < len(tokens) and tokens[i+1] in {"/", "-"}:
-                combined_token = f"{token}/{tokens[i+2]}"
+                corrected_next_token = self._fuzzy_correct(tokens[i+2])
+                
+                combined_token = f"{corrected_token}/{corrected_next_token}"
                 normalized_combined = self._normalize_token(combined_token)
 
                 best_match, score, _ = process.extractOne(
@@ -124,11 +127,13 @@ class UnitExtractor:
                     matched_unit = best_match
                     annotations.append((combined_token, label))
 
-                    # Check for value before combined unit
-                    if i > 0 and tokens[i-1].replace(',', '').replace('.', '').isdigit():
+                    # Check for value before combined unit with distance
+                    value, distance = self._find_nearest_numeric(tokens, i)
+                    if value:
                         unit_pairs.append({
-                            "value": tokens[i-1],
-                            "unit": matched_unit
+                            "value": value,
+                            "unit": matched_unit,
+                            "distance": distance
                         })
 
                     i += 3  # Skip the combined tokens
@@ -139,10 +144,12 @@ class UnitExtractor:
             annotations.append((token, label))
 
             # Check for value + unit pattern
-            if i > 0 and tokens[i-1].replace(',', '').replace('.', '').isdigit() and label == "UNIT":
+            value, distance = self._find_nearest_numeric(tokens, i)
+            if value and label == "UNIT":
                 unit_pairs.append({
-                    "value": tokens[i-1],
-                    "unit": matched_unit or token
+                    "value": value,
+                    "unit": matched_unit or token,
+                    "distance": distance
                 })
 
             i += 1
@@ -185,6 +192,23 @@ class UnitExtractor:
 
     def _normalize_token(self, token: str) -> str:
         return re.sub(r'[^\w/]', '', token.lower())
+
+    def _fuzzy_correct(self, token: str) -> str:
+        if not token:
+            return token
+        best_match, score, _ = process.extractOne(token, list(self.known_units), scorer=fuzz.ratio)
+        if score >= self.similarity_threshold:
+            return best_match
+        return token
+
+    def _find_nearest_numeric(self, tokens: List[str], index: int, max_lookback: int = 5) -> Tuple[Optional[str], Optional[int]]:
+        for offset in range(1, max_lookback + 1):
+            if index - offset >= 0:
+                candidate = tokens[index - offset].replace(',', '').replace('.', '')
+                if candidate.isdigit():
+                    return tokens[index - offset], offset
+        return None, None
+
     
 class Normalizer:
     def __init__(self):

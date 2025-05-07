@@ -17,26 +17,21 @@ class MonitoringActions:
         ):
         if test_flag:
             db.delete(query={}, collection_name=collection_name)
-        machine_report_data = db.read(query={'_id': convert_objectid(id)}, collection_name=machine_report_monitoring_cname)
+        
+        machine_report_data = db.read(query={'_id': id}, collection_name=machine_report_monitoring_cname)
         
         SYSTEM_MESSAGE = 'The system'
         
         if not machine_report_data:
             return f"{SYSTEM_MESSAGE} could not find the data. Thank you for your feedback"
-        elif not machine_report_data['allow-feedback'] or does_match:
+        elif does_match:
             db.delete(query={**machine_report_data}, collection_name=machine_report_monitoring_cname)
             message = ''
-            if does_match:
-                message = f'{SYSTEM_MESSAGE} has evaluated your feedback'
-                if not machine_report_data['allow-feedback']:
-                    message = message + f'and it seems that it does not allow feedback as of right now.'
-            else:
-                message = f'{SYSTEM_MESSAGE} sees that it does not allow feedback as of right now.'
-            message = message + 'Thank you for your feedback. '
+            message = f'{SYSTEM_MESSAGE} has evaluated your feedback. Thank you for your feedback.' 
 
             return message
         
-        return f'{SYSTEM_MESSAGE} will follow up on that. If this happens once again to you, please Thank you for your feedback.'
+        return f'{SYSTEM_MESSAGE} will follow up on that. If this happens once again to you, please add feedback immediately. Thank you for your feedback.'
 
 class ReportActions:
     def __init__(self, MAX_DOCUMENTS_TO_BE_STORED = 50):
@@ -63,6 +58,11 @@ class ReportActions:
             print("Machine report created with ID:", res.get("_id"))
         except Exception as e:
             print(f"Error during machine report creation: {e}")
+
+    def __check_if_env_is_in_local(self) -> bool:
+        from AppConfig import AppConfig
+        ac = AppConfig()
+        return ac.getisLocalDevEnvironment() or ac.getisLocalEnvironment()
 
     @deprecated('use streamProcessImage instead')
     def __processDataToMachineReport(self, data: str, type: str, list_of_targets: any) -> list[dict]:
@@ -129,12 +129,15 @@ class ReportActions:
         version: Version = Version(0, 0, 1),
         collection_name: str = 'Machine Report',
         monitoring_cname: str = 'Monitoring',
-        test_flag: bool = False
+        test_flag: bool = True
     ):
-        if test_flag:
+        is_local_dev_env = self.__check_if_env_is_in_local()
+        if test_flag and is_local_dev_env:
             yield f"data: {{\"devmode\": \"enabled\", \"msg\": \"Deleting all data\"}}\n\n"
             self.__delete()
             self.__delete(collection_name=monitoring_cname)
+        elif not is_local_dev_env and test_flag:
+            raise ValueError('Environment must be in local')
         
         machine_report_builder = MachineReportBuilder(
             input=MachineReportInputWrapper(image_path=image),
@@ -156,7 +159,8 @@ class ReportActions:
             first_stage = machine_report_builder.image_to_unprocessed_text(image)
             yield f"data: {{\"progress\": 60, \"msg\": \"OCR complete. Normalizing text...\"}}\n\n"
 
-            
+
+
             #******************************
             # Stage 1.1: Normalization  ***
             #******************************
@@ -203,7 +207,7 @@ class ReportActions:
                     self.__createMachineReport(query={"missing_keys": missing_keys, **res}, collection_name=collection_name)
                     raise ValueError(f'Missing required keys: {", ".join(missing_keys)}')
             
-            res['machine-report'] = third_stage
+            res['machine_report'] = third_stage
             res['process_ends_at'] = self._initialize_process_data('process_ends_at')
             res['version'] = machine_report_builder.version.__str__()
 
@@ -265,7 +269,7 @@ class ReportActions:
         missing_keys = []
         for unit, alias in list_of_targets:
             if alias not in third_stage:
-                missing_keys.append(f"{unit} or {alias}")
+                missing_keys.append(f"{unit} as {alias}")
         
         if third_stage.get('machine_number') == 'None':
             missing_keys.append("machine-number") 
