@@ -198,7 +198,7 @@ class ReportActions:
                 95 and self.MAX_DOCUMENTS_TO_BE_STORED > self.created_documents
             )
             enable_feedback = probability_generator(failure_rate=failure_rate)
-            if enable_feedback:
+            if enable_feedback and test_flag:
                 yield f"data: {{\"devmode\": \"enabled\", \"msg\": \"Feedback enabled\"}}\n\n"
             
             res['allow-feedback'] = enable_feedback
