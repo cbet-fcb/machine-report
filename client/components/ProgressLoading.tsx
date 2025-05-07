@@ -21,11 +21,11 @@ const ProgressLoading: React.FC<ProgressLoadingProps> = ({
           className={`${
             loading
               ? " fixed inset-0 bg-black/80 z-50 justify-center"
-              : " static w-full md:w-[46%] justify-start "
+              : " static w-full justify-start "
           }  flex flex-col items-center gap-2 `}
         >
           <progress
-            className="progress progress-info h-4 w-56"
+            className="progress progress-info h-4 w-[80%]"
             value={progressData?.progress || 0}
             max="100"
           ></progress>
