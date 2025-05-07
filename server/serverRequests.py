@@ -8,15 +8,33 @@ class MonitoringActions:
     def __init__(self):
         pass
 
-    def feedback(id: str, does_match: bool, collection_name='Feedback', machine_report_monitoring_cname='Monitoring'):
+    def feedback(id: str, 
+                 does_match: bool, collection_name='Feedback', 
+                 machine_report_monitoring_cname='Monitoring',
+                 test_flag = True
+        ):
+        if test_flag:
+            db.delete({}, collection_name)
         machine_report_data = db.read({'_id': convert_str(id)}, machine_report_monitoring_cname)
+        
+        SYSTEM_MESSAGE = 'The system'
+        
         if not machine_report_data:
-            return 'Not found'
+            return f"{SYSTEM_MESSAGE} could not find the data. Thank you for your feedback"
         elif not machine_report_data['allow-feedback'] or does_match:
             db.delete(query={**machine_report_data}, collection_name=machine_report_monitoring_cname)
-            return ('It matches' if does_match else 'Feedback disabled') + ' so no need to store monitoring data'
+            message = ''
+            if does_match:
+                message = f'{SYSTEM_MESSAGE} has evaluated your feedback'
+                if not machine_report_data['allow-feedback']:
+                    message = message + f'and it seems that it does not allow feedback as of right now.'
+            else:
+                message = f'{SYSTEM_MESSAGE} sees that it does not allow feedback as of right now.'
+            message = message + 'Thank you for your feedback. '
+
+            return message
         
-        return 'Thank you for the feedback'
+        return f'{SYSTEM_MESSAGE} will follow up on that. If this happens once again to you, please Thank you for your feedback.'
 
         
 
@@ -175,7 +193,10 @@ class ReportActions:
             #******************************
             # Feature: Feedback         ***
             #******************************
-            failure_rate = 0 if test_flag else (95 and self.MAX_DOCUMENTS_TO_BE_STORED > self.created_documents) # If test flag is set to true then no failure rate 
+            # If test flag is set to true then no failure rate 
+            failure_rate = 0 if test_flag else (
+                95 and self.MAX_DOCUMENTS_TO_BE_STORED > self.created_documents
+            )
             enable_feedback = probability_generator(failure_rate=failure_rate)
             res['allow_feedback'] = enable_feedback
 
@@ -224,22 +245,23 @@ class ReportActions:
             monitoring_collection_name: str
         ):
         final = {}
-        if enable_feedback:
-            self.__createMachineReport(third_stage, monitoring_collection_name)
-            final = third_stage
-        else:
-            final['machine-number'] = third_stage.get('machine_number')
-            for unit, alias in list_of_targets:
-                final[alias] = third_stage.get(alias)
-        
+        final['machine-number'] = third_stage.get('machine_number')
+
+        for unit, alias in list_of_targets:
+            final[alias] = third_stage.get(alias)
+
         final['allow-feedback'] = enable_feedback
         final['version'] = version
+    
+        if enable_feedback:
+            self.__createMachineReport(third_stage, monitoring_collection_name)
+
         
         return final
 
 
 
-class ServerRequests(ReportActions):
+class ServerRequests(ReportActions, MonitoringActions):
     def __init__(self):
         super().__init__()
         pass
