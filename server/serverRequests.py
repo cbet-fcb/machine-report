@@ -180,11 +180,13 @@ class ReportActions:
                 raise ValueError('Cannot generate machine report')
 
             yield f"data: {{\"progress\": 90, \"msg\": \"Finalizing machine report...\"}}\n\n"
-
-            missing_keys = self._check_missing_keys(list_of_targets, third_stage)
-            if missing_keys:
-                self.__createMachineReport(query={"missing_keys": missing_keys, **res}, collection_name=collection_name)
-                raise ValueError(f'Missing required keys: {", ".join(missing_keys)}')
+            if not test_flag:
+                missing_keys = self._check_missing_keys(list_of_targets, third_stage)
+                if missing_keys:
+                    self.__createMachineReport(query={"missing_keys": missing_keys, **res}, collection_name=collection_name)
+                    raise ValueError(f'Missing required keys: {", ".join(missing_keys)}')
+            else:
+                yield f"data: {{\"devmode\": \"enabled\", \"msg\": \"Disabling checking of keys\"}}\n\n"
 
             res['machine-report'] = third_stage
             res['process_ends_at'] = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -230,15 +232,16 @@ class ReportActions:
             'process_begins_at': datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         }
 
-    def _check_missing_keys(self, list_of_targets, third_stage):
+    def _check_missing_keys(self, list_of_targets, third_stage, test_flag: bool):
         missing_keys = []
-        for unit, alias in list_of_targets:
-            if alias not in third_stage:
-                missing_keys.append(f"{unit} or {alias}")
-        
-        if third_stage.get('machine_number') == 'None':
-            missing_keys.append("machine-number") 
-        
+        if not test_flag:
+            for unit, alias in list_of_targets:
+                if alias not in third_stage:
+                    missing_keys.append(f"{unit} or {alias}")
+            
+            if third_stage.get('machine_number') == 'None':
+                missing_keys.append("machine-number") 
+
         return missing_keys
 
     def _generate_final_report(
