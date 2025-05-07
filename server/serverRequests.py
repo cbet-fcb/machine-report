@@ -186,7 +186,7 @@ class ReportActions:
                 self.__createMachineReport(query={"missing_keys": missing_keys, **res}, collection_name=collection_name)
                 raise ValueError(f'Missing required keys: {", ".join(missing_keys)}')
 
-            res['machine_report'] = third_stage
+            res['machine-report'] = third_stage
             res['process_ends_at'] = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             res['version'] = machine_report_builder.version.__str__()
 
@@ -198,13 +198,18 @@ class ReportActions:
                 95 and self.MAX_DOCUMENTS_TO_BE_STORED > self.created_documents
             )
             enable_feedback = probability_generator(failure_rate=failure_rate)
-            res['allow_feedback'] = enable_feedback
+            if enable_feedback:
+                yield f"data: {{\"devmode\": \"enabled\", \"msg\": \"Feedback enabled\"}}\n\n"
+            
+            res['allow-feedback'] = enable_feedback
+            if enable_feedback:
+                self.__createMachineReport(res, monitoring_cname)
 
-            final = self._generate_final_report(enable_feedback, third_stage, list_of_targets, version.__str__(), monitoring_cname)
-
+            
             #******************************
             # Last Stage: Final         ***
             #******************************
+            final = self._generate_final_report(enable_feedback, third_stage, list_of_targets, version.__str__())
             self.__createMachineReport(final, collection_name)
 
             payload = {
@@ -239,10 +244,9 @@ class ReportActions:
     def _generate_final_report(
             self, 
             enable_feedback: bool, 
-            third_stage: any, 
+            third_stage: any,
             list_of_targets: list[tuple[str, str]], 
             version: Version, 
-            monitoring_collection_name: str
         ):
         final = {}
         final['machine-number'] = third_stage.get('machine_number')
@@ -252,10 +256,6 @@ class ReportActions:
 
         final['allow-feedback'] = enable_feedback
         final['version'] = version
-    
-        if enable_feedback:
-            self.__createMachineReport(third_stage, monitoring_collection_name)
-
         
         return final
 

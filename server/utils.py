@@ -25,6 +25,7 @@ def convert_objectid(obj):
 def convert_str(obj):
     if isinstance(obj, str):
         return ObjectId(obj)
+    raise TypeError(f"Type {type(obj)} not serializable")
 
 def deprecated(reason: str):
     def decorator(func):
