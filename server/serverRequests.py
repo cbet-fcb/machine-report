@@ -8,14 +8,16 @@ class MonitoringActions:
     def __init__(self):
         pass
 
-    def feedback(id: str, 
-                 does_match: bool, collection_name='Feedback', 
-                 machine_report_monitoring_cname='Monitoring',
+    def feedback(self,
+                 id: str, 
+                 does_match: bool, 
+                 collection_name: str='Feedback', 
+                 machine_report_monitoring_cname: str = 'Monitoring',
                  test_flag = True
         ):
         if test_flag:
-            db.delete({}, collection_name)
-        machine_report_data = db.read({'_id': convert_str(id)}, machine_report_monitoring_cname)
+            db.delete(query={}, collection_name=collection_name)
+        machine_report_data = db.read(query={'_id': convert_objectid(id)}, collection_name=machine_report_monitoring_cname)
         
         SYSTEM_MESSAGE = 'The system'
         
