@@ -85,7 +85,7 @@ def feedback():
     res['_id'] = id
 
     message = sr.feedback(id, feedback)
-    return jsonify({'message': message}, 'data': res), 200
+    return jsonify({'message': message 'data': res}), 200
 
 
 if __name__ == '__main__':
