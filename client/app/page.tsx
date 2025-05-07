@@ -47,6 +47,11 @@ export default function Home({}): React.JSX.Element {
   const [allowFeedback, setAllowFeedback] = React.useState(true);
   const [showFeedback, setShowFeedback] = React.useState(false);
 
+  const [machineReportId, setMachineReportId] = React.useState<string | null>(
+    null
+  );
+  const [feedback, setFeedback] = React.useState<boolean | null>(null);
+
   const handleImageUpload = async (
     event: React.ChangeEvent<HTMLInputElement>
   ) => {
@@ -67,6 +72,7 @@ export default function Home({}): React.JSX.Element {
             progress: 0,
             msg: "Error: " + data.error,
           });
+          setOcrData(null);
           console.log(data.error);
           alert("Error Image ");
         }
@@ -77,7 +83,11 @@ export default function Home({}): React.JSX.Element {
             progress: 0,
             msg: "...",
           });
-          // setAllowFeedback(data?.data?.["allow-feedback"] || false);
+          setAllowFeedback(data?.data?.["allow-feedback"] || false);
+          setMachineReportId(data?.data?._id || null);
+          setFeedback(false);
+          console.log(data)
+          alert("Image Process Success ");
         }
       });
       setLoading(false);
@@ -90,8 +100,21 @@ export default function Home({}): React.JSX.Element {
     }
   };
 
+  const handleFeedback = async (feedback: boolean) => {
+    if (machineReportId) {
+      const res = await server.feedback(machineReportId, feedback);
+      if (res) {
+        alert("Feedback Sent");
+        setShowFeedback(false);
+      } else {
+        alert("Error Sending Feedback");
+        setShowFeedback(false);
+      }
+    }
+  };
+
   // const handlePing = async() => {
-  //   const res = await server.ping();
+  //   const res = await server.ping();`
   //   alert(res?.test || "error");
   // }
 
@@ -153,7 +176,7 @@ export default function Home({}): React.JSX.Element {
 
       {/* table */}
       <div className="w-[95vw] flex flex-col md:flex-row items-center justify-center gap-10 py-10 mb-auto">
-        {uploadedImage && !loading && (
+        {ocrData?._id && uploadedImage && !loading && (
           <div className="h-full w-full md:w-[46%]">
             <div className="w-full rounded-box border overflow-clip relative">
               {allowFeedback && (
@@ -182,10 +205,10 @@ export default function Home({}): React.JSX.Element {
                     </td>
                     <td className="text-base-content font-light text-sm">
                       {typeof ocrData?.["pcs/min"] === "object" &&
-                      "value" in ocrData["pcs/min"] ? (
+                      ocrData["pcs/min"]?.value ? (
                         <>
-                          {String(ocrData["pcs/min"].value)} 
-                          {String(ocrData["pcs/min"].unit)}
+                          {String(ocrData["pcs/min"]?.value)} 
+                          {String(ocrData["pcs/min"]?.unit)}
                         </>
                       ) : (
                         String(ocrData?.["pcs/min"])
@@ -221,18 +244,33 @@ export default function Home({}): React.JSX.Element {
           <div
             className={`fixed inset-0 bg-black/80 z-50 justify-center flex items-center transition-all duration-300`}
           >
-            <div className="bg-base-100 w-max p-6 rounded-box flex flex-col gap-3">
+            <div className="relative bg-base-100 w-max p-8 rounded-box flex flex-col gap-4">
+              <button
+                onClick={() => setShowFeedback(false)}
+                className="absolute top-1 right-1 btn btn-xs btn-circle btn-ghost btn-error "
+              >
+                x
+              </button>
               <p className="w-max text-center">
                 Do the results matches the picture?
               </p>
               <div className="w-full flex justify-evenly">
                 <button
                   className="btn btn-sm btn-outline"
-                  onClick={() => setShowFeedback(false)}
+                  onClick={() => {
+                    handleFeedback(false);
+                  }}
                 >
                   No
                 </button>
-                <button className="btn btn-sm btn-primary">Yes</button>
+                <button
+                  onClick={() => {
+                    handleFeedback(true);
+                  }}
+                  className="btn btn-sm btn-primary"
+                >
+                  Yes
+                </button>
               </div>
             </div>
           </div>
@@ -243,15 +281,15 @@ export default function Home({}): React.JSX.Element {
           <div
             className={`${
               expanded
-                ? " fixed inset-0 bg-black/80 z-50 justify-center"
-                : " static w-full md:w-[46%] justify-start "
-            }  flex items-center transition-all duration-300`}
+                ? " fixed inset-0 bg-black/80 z-50 "
+                : " static w-full md:w-[46%] "
+            } justify-center flex items-center transition-all duration-300`}
             onClick={() => setExpanded((prev) => !prev)}
           >
             <img
               src={uploadedImage}
               alt="Expanded"
-              className=" hover:border-black border border-transparent w-[95vw] max-h-[95vh] rounded-lg transition-all duration-300 cursor-pointer"
+              className=" hover:border-black border border-transparent max-w-[90%] max-h-[90%] rounded-lg transition-all duration-300 cursor-pointer"
             />
           </div>
         )}

@@ -16,6 +16,24 @@ class ServerRequests extends Server {
     }
   }
 
+  feedback(machineReportId: string, feedback: Boolean) {
+    const data = {
+      _id: machineReportId,
+      feedback: feedback,
+    };
+    try {
+      const res = fetch(`${this.apiUrl}/feedback`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(data),
+      });
+      return res;
+    } catch (err) {
+      console.error("Feedback error:", err);
+    }
+  }
 
   streamProcessImage(file: File, onMessage: (data: any) => void) {
     const formData = new FormData();
