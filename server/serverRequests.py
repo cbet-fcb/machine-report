@@ -28,7 +28,7 @@ class MonitoringActions:
         SYSTEM_MESSAGE = 'The system'
         
         if not machine_report_data:
-            return f"{SYSTEM_MESSAGE} could not find the data. Thank you for your feedback"
+            return f"{SYSTEM_MESSAGE} could not find the data. Please try again"
         elif does_match:
             db.delete(query={**machine_report_data}, collection_name=machine_report_monitoring_cname)
             message = ''
@@ -154,7 +154,7 @@ class ReportActions:
         )
 
         print('Processing image...')
-        res = self._initialize_process_data('process_begins_at')
+        res = self.__initialize_process_data('process_begins_at')
 
         yield f"data: {{\"progress\": 10, \"msg\": \"Starting image to text...\"}}\n\n"
 
@@ -167,7 +167,7 @@ class ReportActions:
             first_stage = machine_report_builder.image_to_unprocessed_text(image)
             yield f"data: {{\"progress\": 60, \"msg\": \"OCR complete. Normalizing text...\"}}\n\n"
             if self.TEST_FLAG:
-                yield f"data: {'stage': 'first_stage', json.dumps({'data': first_stage})}\n\n" 
+                yield f"data: {'stage': 'ocr processing', json.dumps({'data': first_stage})}\n\n" 
 
 
 
@@ -181,7 +181,7 @@ class ReportActions:
             res['unprocessed_text'] = change_leading_zero
             yield f"data: {{\"progress\": 70, \"msg\": \"Cleaning up potential errors\"}}\n\n"
             if self.TEST_FLAG:
-                yield f"data: {'stage': 'first_stage_dot_one', json.dumps({'data': change_leading_zero})}\n\n" 
+                yield f"data: {'stage': 'normalizing text', json.dumps({'data': change_leading_zero})}\n\n" 
 
 
 
@@ -217,13 +217,13 @@ class ReportActions:
             yield f"data: {{\"progress\": 90, \"msg\": \"Finalizing machine report...\"}}\n\n"
             
             res['machine_report'] = third_stage
-            res['process_ends_at'] = self._initialize_process_data('process_ends_at')
+            res['process_ends_at'] = self.__initialize_process_data('process_ends_at')
             res['version'] = machine_report_builder.version.__str__()
             
             if self.TEST_FLAG:
                 yield f"data: {{\"devmode\": \"enabled\", \"msg\": \"Disabling checking of keys\"}}\n\n"
             else:
-                missing_keys = self._check_missing_keys(list_of_targets, third_stage)
+                missing_keys = self.__check_missing_keys(list_of_targets, third_stage)
                 if missing_keys:
                     self.__createMachineReport(query={"missing_keys": missing_keys, **res}, collection_name=monitoring_cname, default_monitoring_collection_name=monitoring_cname)
                     raise ValueError(f'Missing required keys: {", ".join(missing_keys)}')
@@ -236,9 +236,9 @@ class ReportActions:
 
 
 
-            # If test flag is set to true then no failure rate 
+            # If test flag is set to true then no failure rate then if created documents and max documents stored
             failure_rate = 0 if self.TEST_FLAG else (
-                95 if self.created_documents < self.MAX_DOCUMENTS_TO_BE_STORED else 0
+                95 if self.created_documents < self.MAX_DOCUMENTS_TO_BE_STORED else 100
             )
 
             enable_feedback = probability_generator(failure_rate=failure_rate)
@@ -257,7 +257,7 @@ class ReportActions:
 
 
 
-            final = self._generate_final_report(enable_feedback, third_stage, list_of_targets, version.__str__())
+            final = self.__generate_final_report(enable_feedback, third_stage, list_of_targets, version.__str__())
             mes = self.__createMachineReport(final, collection_name, default_monitoring_collection_name=monitoring_cname)
 
             payload = {
@@ -280,23 +280,31 @@ class ReportActions:
 
 
     # Helper Methods for Cleanliness
-    def _initialize_process_data(self, key: str):
+    def __initialize_process_data(self, key: str):
         return {
             key: datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         }
 
-    def _check_missing_keys(self, list_of_targets, third_stage):
+    def __check_missing_keys(self, 
+                            list_of_targets, third_stage, 
+                            third_stage_machine_number_key: str = 'machine_number', 
+                            missing_key_to_machine_number_key_as_replacement: str = ''):
         missing_keys = []
+
         for unit, alias in list_of_targets:
             if alias not in third_stage:
-                missing_keys.append(f"{unit} as {alias}")
-        
-        if third_stage.get('machine_number') == 'None':
-            missing_keys.append("machine-number") 
+                missing_keys.append(f"{unit} as {alias}" if unit != alias else f"{unit}")
+
+        if third_stage_machine_number_key not in third_stage or third_stage.get(third_stage_machine_number_key) == 'None':
+            if missing_key_to_machine_number_key_as_replacement == '':
+                hyphenated_key = third_stage_machine_number_key.replace('_', '-')
+            else:
+                hyphenated_key = missing_key_to_machine_number_key_as_replacement
+            missing_keys.append(hyphenated_key) 
 
         return missing_keys
 
-    def _generate_final_report(
+    def __generate_final_report(
             self, 
             enable_feedback: bool, 
             third_stage: any,
@@ -304,7 +312,6 @@ class ReportActions:
             version: Version, 
         ):
         final = {}
-        final['machine-number'] = third_stage.get('machine_number')
 
         for unit, alias in list_of_targets:
             final[alias] = third_stage.get(alias)

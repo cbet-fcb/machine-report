@@ -84,6 +84,10 @@ def feedback():
     res['picture_and_output_matches'] = feedback
     res['_id'] = machine_report_id
 
+    # If feedback provides as true then no need to increment created documents bcz it will be deleted
+    if feedback: 
+        sr.created_documents -= 1
+    
     message = sr.feedback(machine_report_id, feedback)
     return jsonify({'message': message, 'data': res}), 200
 
