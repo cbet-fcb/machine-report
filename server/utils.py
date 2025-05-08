@@ -37,7 +37,7 @@ def deprecated(reason: str, disable_execution: bool = True):
                 stacklevel=2
             )
             if disable_execution:
-                raise NotImplementedError(f"{func.__name__} is disabled: {reason}")
+                raise NotImplementedError(f"{func.__name__} is disabled: {reason}, we do not support backwards compatibility yet")
             return func(*args, **kwargs)
         return wrapper
     return decorator
