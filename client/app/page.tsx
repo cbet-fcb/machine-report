@@ -2,15 +2,13 @@
 
 import React from "react";
 
-import CameraIcon from "./assets/camera.svg";
+import Camera from "./assets/camera";
 
 import ServerRequests from "./api/ServerRequests";
 
 import ThemeControl from "../components/ThemeControl";
 import ProgressLoading from "../components/ProgressLoading";
 import OcrResults from "../components/OcrResults";
-
-import Image from "next/image";
 
 interface ProgressData {
   progress: number;
@@ -118,9 +116,17 @@ export default function Home(): React.JSX.Element {
   return (
     <main className={` container !justify-start transition-all duration-300 `}>
       {/* theme control */}
-      <ThemeControl />
+      <div className="absolute top-5 right-5 z-50 shadow-lg border border-base-300 p-2 rounded-full">
+        <ThemeControl />
+      </div>
 
-      <h1 className="text-2xl tracking-[8px] mt-auto">Machine  Report</h1>
+      <h1
+        className={`${
+          uploadedImage && "pt-10 md:pt-0"
+        } text-2xl tracking-[8px] mt-auto `}
+      >
+        Machine  Report
+      </h1>
 
       {/* camera input component */}
       <div className={` flex flex-col items-center justify-center gap-10 `}>
@@ -133,7 +139,7 @@ export default function Home(): React.JSX.Element {
           ref={cameraInputRef}
         />
         <div
-          className="w-[75vw] md:w-max max-w-[75vw] btn btn-xl h-max tooltip tooltip-open tooltip-bottom md:tooltip-right "
+          className="w-[75vw] md:w-max max-w-[75vw] btn btn-xl h-max tooltip tooltip-open tooltip-bottom md:tooltip-right group"
           onClick={handleCameraClick}
         >
           <div className="tooltip-content bg-base-100 border border-base-content rounded-sm">
@@ -141,13 +147,7 @@ export default function Home(): React.JSX.Element {
               Upload Something
             </div>
           </div>
-          <Image
-            className={` size-20`}
-            height={10}
-            width={10}
-            alt="Camera Upload"
-            src={CameraIcon}
-          />
+          <Camera className="size-20 group-hover:stroke-primary font-thin stroke-0.5  " />
         </div>
       </div>
 
@@ -170,41 +170,43 @@ export default function Home(): React.JSX.Element {
         {/* feedback modal */}
         {showFeedback && (
           <div
-            className={`fixed inset-0 bg-black/80 z-50 flex flex-col h-screen w-full justify-center items-center transition-all duration-300`}
+            className={`fixed inset-0 bg-black/80 z-50 flex flex-col h-screen w-full justify-start md:justify-center items-center transition-all duration-300 overflow-y-auto`}
           >
-            <div
-              className={`${
-                allowFeedback
-                  ? "text-base-100 border border-base-100"
-                  : "bg-base-100"
-              } relative  w-[75vw] md:w-max max-w-[75vw] p-8 rounded-box flex flex-col gap-4`}
-            >
-              <button
-                onClick={() => setShowFeedback(false)}
-                className="absolute btn btn-xs btn-circle btn-outline top-1.5 right-1.5"
+            <div className="h-max w-[95vw] flex flex-col md:flex-row items-center justify-center gap-10 pt-10 ">
+              <div
+                className={`${
+                  allowFeedback
+                    ? "text-base-100 border border-base-100"
+                    : "bg-base-100"
+                } relative w-[75vw] lg:w-[60vw] py-8 px-5 rounded-box flex flex-col gap-4`}
               >
-                x
-              </button>
-              <p className="w-max text-center">
-                Do the result matches the picture?
-              </p>
-              <div className="w-full flex justify-evenly">
                 <button
-                  className="btn btn-sm btn-outline"
-                  onClick={() => {
-                    handleFeedback(false);
-                  }}
+                  onClick={() => setShowFeedback(false)}
+                  className="absolute btn btn-xs btn-circle btn-outline top-1.5 right-1.5"
                 >
-                  No
+                  x
                 </button>
-                <button
-                  onClick={() => {
-                    handleFeedback(true);
-                  }}
-                  className="btn btn-sm btn-primary"
-                >
-                  Yes
-                </button>
+                <p className="w-full text-center">
+                  Do the result matches the picture?
+                </p>
+                <div className="w-full flex justify-evenly">
+                  <button
+                    className="btn btn-sm btn-outline"
+                    onClick={() => {
+                      handleFeedback(false);
+                    }}
+                  >
+                    No
+                  </button>
+                  <button
+                    onClick={() => {
+                      handleFeedback(true);
+                    }}
+                    className="btn btn-sm btn-primary"
+                  >
+                    Yes
+                  </button>
+                </div>
               </div>
             </div>
 
