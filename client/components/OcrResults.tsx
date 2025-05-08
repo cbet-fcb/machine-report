@@ -36,8 +36,8 @@ const OcrResults: React.FC<OcrResultsProps> = ({
             <button
               onClick={() => setShowFeedback(true)}
               className={`
-                after:content-['?'] hover:after:content-['Feedback'] hover:w-[70px] bg-base-300
-                transition-all duration-300 absolute btn btn-xs btn-circle top-2 right-5 origin-left
+                 hover:w-[70px] after:content-['?'] hover:after:content-['Feedback'] 
+                transition-all duration-300 absolute btn btn-primary btn-xs btn-circle top-2 right-5 origin-left
                 `}
             ></button>
           )}
