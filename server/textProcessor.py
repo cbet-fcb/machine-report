@@ -101,7 +101,7 @@ class UnitExtractor:
         self.learned_units = set()
         self.similarity_threshold = 75
 
-    def extract_units(self, tokens: List[str]) -> Dict:
+    def extract_units(self, tokens: List[str], max_distance: int = 2) -> Dict:
         unit_pairs = []
         annotations = []
         i = 0
@@ -128,7 +128,7 @@ class UnitExtractor:
                     annotations.append((combined_token, label))
 
                     # Check for value before combined unit with distance
-                    value, distance = self._find_nearest_numeric(tokens, i)
+                    value, distance = self._find_nearest_numeric(tokens, i, max_lookback=max_distance)
                     if value:
                         unit_pairs.append({
                             "value": value,
@@ -201,7 +201,7 @@ class UnitExtractor:
             return best_match
         return token
 
-    def _find_nearest_numeric(self, tokens: List[str], index: int, max_lookback: int = 5) -> Tuple[Optional[str], Optional[int]]:
+    def _find_nearest_numeric(self, tokens: List[str], index: int, max_lookback: int = 2) -> Tuple[Optional[str], Optional[int]]:
         for offset in range(1, max_lookback + 1):
             if index - offset >= 0:
                 candidate = tokens[index - offset].replace(',', '').replace('.', '')
@@ -246,6 +246,24 @@ class Normalizer:
         # Rebuild the corrected text by joining words back together
         corrected_text = " ".join(corrected_words)
         return corrected_text
+    
+    def normalize_floats_in_text(self, text: str) -> str:
+        """
+        Normalize malformed float strings like 0..0, .0..0, etc., to standard float form.
+        """
+        return re.sub(r'(?<!\d)\.?(\d+)[.]+(\d+)(?!\d)', r'\1.\2', text)
+
+    def remove_duplicate_decimal_points_in_float(self, tokens: list[str], max_digits: int = None) -> list[str]:
+        cleaned_tokens = []
+        for tok in tokens:
+            if tok.count('.') > 1 and any(c.isdigit() for c in tok):
+                normalized = self.normalize_floats_in_text(tok)
+                if max_digits:
+                    normalized = re.sub(r'\.(\d+)', lambda m: '.' + m.group(1)[:max_digits], normalized)
+                cleaned_tokens.append(normalized)
+            else:
+                cleaned_tokens.append(tok)
+        return cleaned_tokens
 
 
     def __check_if_target_sees_leading_zero_as_let_o(self, text: str, targets: list[tuple[str, str]]): ## Edge case #1: If it sees num 0 as let O

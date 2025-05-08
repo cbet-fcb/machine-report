@@ -21,6 +21,6 @@ def send_email_alert(subject: str, body: str, to_emails: list[str]):
 if __name__ == '__main__':
     send_email_alert(
         subject="🚨 Machine Report Mismatch Detected",
-        body=f"Report ID {id} has a mismatch and was added to monitoring.\n\nData: 'Nothing'\n",
+        body=f"Report ID has a mismatch and was added to monitoring.\n\nData: 'Nothing'\n",
         to_emails=["monitoring-team@example.com"]
     )

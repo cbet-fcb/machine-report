@@ -1,4 +1,3 @@
-from ocr import OCREngine
 from pydantic import BaseModel, Field
 import spacy
 from spacy.tokenizer import Tokenizer

@@ -1,29 +1,22 @@
-from nlp import *
 import pytest
+from textProcessor import Normalizer
 
-import pytest
-from nlp import NLP
-
-# Create a fixture for reusable NLP instance
 @pytest.fixture
 def nlp_engine():
-    return NLP(en_core_type="en_core_web_lg")
+    from nlp import NLPEngine
+    return NLPEngine()
 
 @pytest.mark.parametrize(
-    "text, expected_count",
+    "text, expected_tokens",
     [
-        ("Hello world!", 3),
-        ("Apple is buying a startup.", 6),
-        ("Test driven development is important.", 6),
+        ("0..0", ["0.0"]),
+        (".0..0", ["0.0"]),
+        (".0..0.", ["0.0", '.']),
+        (".0..0..", ["0.0", '..']),
     ]
 )
-def test_tokens_is_equal_to_count_of_words(nlp_engine, text, expected_count):
-    output = nlp_engine.handle_text(text)
-    assert len(output["tokens"]) == expected_count
-
-def test_entity_cardinal_exists(nlp_engine):
-    text = "There are 3 apples on the table."
-    output = nlp_engine.handle_text(text)
-
-    entity_labels = [label for _, label in output["entities"]]
-    assert "CARDINAL" in entity_labels
+def test_malformed_floats_are_normalized(nlp_engine, text, expected_tokens):
+    normalized_text = Normalizer().normalize_floats_in_text(text)
+    output = nlp_engine.handle_text(normalized_text)
+    tokens = output["tokens"]
+    assert tokens == expected_tokens, f"Expected {expected_tokens}, got {tokens}"

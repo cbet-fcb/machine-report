@@ -12,6 +12,8 @@ import cv2
 from matplotlib import pyplot as plt
 import concurrent.futures
 from utils import *
+import math
+from collections import defaultdict
 
 from imageHandler import ImageHandler
 
@@ -45,29 +47,36 @@ class OCREngine:
         
         return grouped_text
 
+    def compute_angle(self, box):
+        (x1, y1), (x2, y2) = box[0], box[3]
+        return math.atan2(y2 - y1, x2 - x1)
+
+    def project_point_onto_angle(self, point, angle):
+        x, y = point
+        return x * math.cos(angle) + y * math.sin(angle)
+
     def group_text_lines(self, results, y_threshold=10):
         """
-        Group OCR word boxes into text lines and return a structured list of lines.
-
-        results[0]: iterable of (box, (text, confidence))
-        y_threshold: max vertical distance to group words into same line
-        Returns: list of dicts {"line_number": int, "words": [{"text": str, "confidence": float}, ...]}
+        Group OCR word boxes into text lines with angle-aware projection.
         """
         lines = defaultdict(list)
 
-        # Group words based on their vertical position (y-axis)
         for box, (text, confidence) in results[0]:
-            center_y = int(sum(pt[1] for pt in box) / 4.0)
-            matched_key = next((k for k in lines if abs(k - center_y) <= y_threshold), None)
-            key = matched_key if matched_key is not None else center_y
+            angle = self.compute_angle(box)
+            center = tuple(sum(p[i] for p in box) / 4.0 for i in (0, 1))
+            projected_y = self.project_point_onto_angle(center, angle)
+
+            matched_key = next((k for k in lines if abs(k - projected_y) <= y_threshold), None)
+            key = matched_key if matched_key is not None else projected_y
+
             lines[key].append({"text": text, "confidence": round(confidence, 4)})
 
-        # Sort by vertical position and return as structured lines
         grouped_lines = []
         for idx, (_, words) in enumerate(sorted(lines.items(), key=lambda x: x[0]), start=1):
             grouped_lines.append({"line_number": idx, "words": words})
 
         return grouped_lines
+
 
 if __name__ == '__main__':
     test = OCREngine()

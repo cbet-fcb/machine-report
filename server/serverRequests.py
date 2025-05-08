@@ -155,6 +155,7 @@ class ReportActions:
 
         print('Processing image...')
         res = self.__initialize_process_data('process_begins_at')
+        res['image'] = image
 
         yield f"data: {{\"progress\": 10, \"msg\": \"Starting image to text...\"}}\n\n"
 
@@ -167,7 +168,8 @@ class ReportActions:
             first_stage = machine_report_builder.image_to_unprocessed_text(image)
             yield f"data: {{\"progress\": 60, \"msg\": \"OCR complete. Normalizing text...\"}}\n\n"
             if self.TEST_FLAG:
-                yield f"data: {'stage': 'ocr processing', json.dumps({'data': first_stage})}\n\n" 
+                yield f"data: {json.dumps({'stage': 'ocr processing', 'data': first_stage})}\n\n"
+ 
 
 
 
@@ -177,11 +179,12 @@ class ReportActions:
             
             
             
-            change_leading_zero = machine_report_builder.normalizer.fix_leading_O_in_text(first_stage, list_of_targets)
-            res['unprocessed_text'] = change_leading_zero
+            clean_leading_zero = machine_report_builder.normalizer.fix_leading_O_in_text(first_stage, list_of_targets)
+            clean_malforming_floats = machine_report_builder.normalizer.normalize_floats_in_text(clean_leading_zero)
+            res['unprocessed_text'] = clean_malforming_floats
             yield f"data: {{\"progress\": 70, \"msg\": \"Cleaning up potential errors\"}}\n\n"
             if self.TEST_FLAG:
-                yield f"data: {'stage': 'normalizing text', json.dumps({'data': change_leading_zero})}\n\n" 
+                yield f"data: {json.dumps({'stage': 'normalizing text', 'data': clean_malforming_floats})}\n\n" 
 
 
 
@@ -191,12 +194,25 @@ class ReportActions:
 
 
 
-            second_stage = machine_report_builder.unprocessed_to_processed_text(change_leading_zero)
-            res['processed_text'] = second_stage
+            second_stage = machine_report_builder.unprocessed_to_processed_text(clean_malforming_floats)
             yield f"data: {{\"progress\": 80, \"msg\": \"Separation of text has been successful\"}}\n\n"
+            res['processed_text'] = second_stage
             if self.TEST_FLAG:
-                yield f"data: {'stage': 'natural language processing', json.dumps({'data': second_stage})}\n\n" 
+                yield f"data: {json.dumps({'stage': 'natural language processing', 'data': second_stage})}\n\n" 
 
+
+
+            #******************************
+            # Stage 2.1: Normalization  ***
+            #******************************            
+
+
+
+            # clean_up_duplicate_decimal_points_in_float = machine_report_builder.normalizer.remove_duplicate_decimal_points_in_float(second_stage['tokens'])
+            # second_stage['tokens'] = clean_up_duplicate_decimal_points_in_float
+            # res['processed_text'] = second_stage
+            # if self.TEST_FLAG:
+            #     yield f"data: {json.dumps({'stage': 'natural language processing', 'data': second_stage})}\n\n"
 
 
             #******************************
@@ -210,7 +226,7 @@ class ReportActions:
                 second_stage
             )
             if self.TEST_FLAG:
-                yield f"data: {'stage': 'generating machine report', json.dumps({'data': third_stage})}\n\n"
+                yield f"data: {json.dumps({'stage': 'generating machine report', 'data': third_stage})}\n\n"
 
             if not third_stage:
                 raise ValueError('Cannot generate machine report')
@@ -246,7 +262,7 @@ class ReportActions:
                 yield f"data: {{\"devmode\": \"enabled\", \"msg\": \"Feedback enabled\"}}\n\n"
             
             res['allow-feedback'] = enable_feedback
-            if enable_feedback:
+            if enable_feedback or True:
                 self.__createMachineReport(res, monitoring_cname, default_monitoring_collection_name=monitoring_cname)
 
 
@@ -318,7 +334,8 @@ class ReportActions:
 
         final['allow-feedback'] = enable_feedback
         final['version'] = version
-        
+        final['machine-number'] = third_stage.get('machine_number')
+
         return final
     
     def deleteAllDataInTest(self, collection_name: str, monitoring_name: str):

@@ -5,6 +5,7 @@ import json
 
 test_dir = "test/machine3"
 
+
 @pytest.mark.parametrize("image_file", [
     f for f in os.listdir(test_dir) if f.endswith('.jpg')
 ])
@@ -19,9 +20,9 @@ def test_stream_process_image(image_file):
         assert response.status_code == 200
 
         error_found = False
-        progress_done_found = False
         progress_updates = []
         final_data = None
+        data = []
 
         for line in response.iter_lines(decode_unicode=True):
             if not line or not line.startswith("data:"):
@@ -37,6 +38,11 @@ def test_stream_process_image(image_file):
 
                 if "progress" in json_data:
                     progress_updates.append(json_data["progress"])
+
+                if "data" in json_data:
+                    value = json_data.get('data')
+                    data = value.get('value')
+                    pass
 
             except Exception:
                 continue
