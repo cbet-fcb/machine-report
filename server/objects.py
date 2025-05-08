@@ -71,7 +71,9 @@ class TargetMaker:
         """
         if not unit_name:
             raise ValueError('Unit name or alias must not be empty')
-        return unit_name, alias or unit_name
+        if alias == "":
+            alias = unit_name
+        return unit_name, alias
 
 class MachineReportInputWrapper(BaseModel):
     image_path : str = Field(default=None, description="supports Path, url")

@@ -87,9 +87,11 @@ def feedback():
     message = sr.feedback(machine_report_id, feedback)
     return jsonify({'message': message, 'data': res}), 200
 
-@app.route('/deleteTest', methods=['GET'])
-def deleteTest():
-    sr.deleteTest()  # Assume this returns a string or result message
+@app.route('/deleteAllDataInTest', methods=['GET'])
+def deleteAllDataInTest():
+    sr.TEST_FLAG = True
+    sr.deleteAllDataInTest(collection_name="Machine Report", monitoring_name="Monitoring")  
+    sr.TEST_FLAG = False
     return jsonify({"message": "Test deleted"}), 200
     pass
 

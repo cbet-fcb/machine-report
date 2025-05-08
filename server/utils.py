@@ -27,7 +27,7 @@ def convert_str(obj):
         return ObjectId(obj)
     raise TypeError(f"Type {type(obj)} not serializable")
 
-def deprecated(reason: str):
+def deprecated(reason: str, disable_execution: bool = True):
     def decorator(func):
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
@@ -36,6 +36,8 @@ def deprecated(reason: str):
                 DeprecationWarning,
                 stacklevel=2
             )
+            if disable_execution:
+                raise NotImplementedError(f"{func.__name__} is disabled: {reason}")
             return func(*args, **kwargs)
         return wrapper
     return decorator

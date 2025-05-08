@@ -4,19 +4,24 @@ import json
 
 db = mongoDb()
 
+
 class MonitoringActions:
     def __init__(self):
         pass
 
+    def __check_if_env_is_in_local(self) -> bool:
+        from AppConfig import AppConfig
+        ac = AppConfig()
+        return ac.getisLocalDevEnvironment() or ac.getisLocalEnvironment()
+
     def feedback(self,
                  id: str, 
                  does_match: bool, 
-                 collection_name: str='Feedback', 
                  machine_report_monitoring_cname: str = 'Monitoring',
                  test_flag = False
         ):
-        if test_flag:
-            db.delete(query={}, collection_name=collection_name)
+        if test_flag and self.__check_if_env_is_in_local():
+            db.delete(query={}, collection_name=machine_report_monitoring_cname)
         
         machine_report_data = db.read(query={'_id': id}, collection_name=machine_report_monitoring_cname)
         
@@ -31,10 +36,12 @@ class MonitoringActions:
 
             return message
         
-        return f'{SYSTEM_MESSAGE} will follow up on that. If this happens once again to you, please add feedback immediately. Thank you for your feedback.'
+        db.create(query={"_id": convert_str(id), "does_match": does_match, **machine_report_data}, collection_name=machine_report_monitoring_cname)
+        return f'{SYSTEM_MESSAGE} will follow up on that. If this happens once again to you, please provide feedback immediately. Thank you for your feedback.'
 
 class ReportActions:
-    def __init__(self, MAX_DOCUMENTS_TO_BE_STORED = 50):
+    def __init__(self, MAX_DOCUMENTS_TO_BE_STORED: int = 50, TEST_FLAG: bool = False):
+        self.TEST_FLAG = TEST_FLAG
         self.MAX_DOCUMENTS_TO_BE_STORED = MAX_DOCUMENTS_TO_BE_STORED
         self.created_documents = 0
         pass
@@ -43,21 +50,23 @@ class ReportActions:
         res = db.delete(query=query, collection_name=collection_name)
         pass
 
-    def __createMachineReport(self, query: dict, collection_name: str) -> None:
-        if self.created_documents >= self.MAX_DOCUMENTS_TO_BE_STORED:
-            print(f'Limit hit at {self.MAX_DOCUMENTS_TO_BE_STORED}, discarding incoming query for further processing')
-            return
+    def __createMachineReport(self, query: dict, collection_name: str, default_monitoring_collection_name: str = "Monitoring") -> str:
+        if self.created_documents >= self.MAX_DOCUMENTS_TO_BE_STORED and collection_name == default_monitoring_collection_name:
+            return f'Limit of {self.MAX_DOCUMENTS_TO_BE_STORED} reached, Skipping report.'
         
         try:
             res = db.create(data=query, collection_name=collection_name)
             if not res:
                 raise RuntimeError("Failed to insert machine report into database.")
             
-            self.created_documents += 1
-
-            print("Machine report created with ID:", res.get("_id"))
+            mes = f"Machine report created with ID: {res.get('_id')}."
+            if collection_name == default_monitoring_collection_name:
+                self.created_documents += 1
+                mes += f"({self.created_documents} out of {self.MAX_DOCUMENTS_TO_BE_STORED} remaining before skipping report)"
+            
+            return mes
         except Exception as e:
-            print(f"Error during machine report creation: {e}")
+            return f"Error during machine report creation: {e}"
 
     def __check_if_env_is_in_local(self) -> bool:
         from AppConfig import AppConfig
@@ -129,15 +138,14 @@ class ReportActions:
         version: Version = Version(0, 0, 1),
         collection_name: str = 'Machine Report',
         monitoring_cname: str = 'Monitoring',
-        test_flag: bool = False
     ):
         is_local_dev_env = self.__check_if_env_is_in_local()
-        if test_flag and is_local_dev_env:
+        if self.TEST_FLAG and is_local_dev_env:
             yield f"data: {{\"devmode\": \"enabled\", \"msg\": \"Deleting all data\"}}\n\n"
-            self.__delete()
+            self.__delete(collection_name=collection_name)
             self.__delete(collection_name=monitoring_cname)
-        elif not is_local_dev_env and test_flag:
-            raise ValueError('Environment must be in local')
+        elif not is_local_dev_env and self.TEST_FLAG:
+            raise ValueError('Environment must be in local if test flag is enabled')
         
         machine_report_builder = MachineReportBuilder(
             input=MachineReportInputWrapper(image_path=image),
@@ -158,8 +166,10 @@ class ReportActions:
             
             first_stage = machine_report_builder.image_to_unprocessed_text(image)
             yield f"data: {{\"progress\": 60, \"msg\": \"OCR complete. Normalizing text...\"}}\n\n"
+            if self.TEST_FLAG:
+                yield f"data: {'stage': 'first_stage', json.dumps({'data': first_stage})}\n\n" 
 
-            yield f"data: {{\"data: {json.dumps(first_stage)}}}\n\n"
+
 
             #******************************
             # Stage 1.1: Normalization  ***
@@ -170,6 +180,8 @@ class ReportActions:
             change_leading_zero = machine_report_builder.normalizer.fix_leading_O_in_text(first_stage, list_of_targets)
             res['unprocessed_text'] = change_leading_zero
             yield f"data: {{\"progress\": 70, \"msg\": \"Cleaning up potential errors\"}}\n\n"
+            if self.TEST_FLAG:
+                yield f"data: {'stage': 'first_stage_dot_one', json.dumps({'data': change_leading_zero})}\n\n" 
 
 
 
@@ -182,6 +194,8 @@ class ReportActions:
             second_stage = machine_report_builder.unprocessed_to_processed_text(change_leading_zero)
             res['processed_text'] = second_stage
             yield f"data: {{\"progress\": 80, \"msg\": \"Separation of text has been successful\"}}\n\n"
+            if self.TEST_FLAG:
+                yield f"data: {'stage': 'natural language processing', json.dumps({'data': second_stage})}\n\n" 
 
 
 
@@ -195,6 +209,9 @@ class ReportActions:
                 machine_report_builder.machine_report_handler.targets,
                 second_stage
             )
+            if self.TEST_FLAG:
+                yield f"data: {'stage': 'generating machine report', json.dumps({'data': third_stage})}\n\n"
+
             if not third_stage:
                 raise ValueError('Cannot generate machine report')
             yield f"data: {{\"progress\": 90, \"msg\": \"Finalizing machine report...\"}}\n\n"
@@ -203,15 +220,14 @@ class ReportActions:
             res['process_ends_at'] = self._initialize_process_data('process_ends_at')
             res['version'] = machine_report_builder.version.__str__()
             
-            if test_flag:
+            if self.TEST_FLAG:
                 yield f"data: {{\"devmode\": \"enabled\", \"msg\": \"Disabling checking of keys\"}}\n\n"
             else:
                 missing_keys = self._check_missing_keys(list_of_targets, third_stage)
                 if missing_keys:
-                    self.__createMachineReport(query={"missing_keys": missing_keys, **res}, collection_name=monitoring_cname)
+                    self.__createMachineReport(query={"missing_keys": missing_keys, **res}, collection_name=monitoring_cname, default_monitoring_collection_name=monitoring_cname)
                     raise ValueError(f'Missing required keys: {", ".join(missing_keys)}')
             
-
 
 
             #******************************
@@ -221,16 +237,17 @@ class ReportActions:
 
 
             # If test flag is set to true then no failure rate 
-            failure_rate = 0 if test_flag else (
-                95 and self.MAX_DOCUMENTS_TO_BE_STORED > self.created_documents
+            failure_rate = 0 if self.TEST_FLAG else (
+                95 if self.created_documents < self.MAX_DOCUMENTS_TO_BE_STORED else 0
             )
+
             enable_feedback = probability_generator(failure_rate=failure_rate)
-            if test_flag:
+            if self.TEST_FLAG:
                 yield f"data: {{\"devmode\": \"enabled\", \"msg\": \"Feedback enabled\"}}\n\n"
             
             res['allow-feedback'] = enable_feedback
             if enable_feedback:
-                self.__createMachineReport(res, monitoring_cname)
+                self.__createMachineReport(res, monitoring_cname, default_monitoring_collection_name=monitoring_cname)
 
 
 
@@ -241,14 +258,16 @@ class ReportActions:
 
 
             final = self._generate_final_report(enable_feedback, third_stage, list_of_targets, version.__str__())
-            self.__createMachineReport(final, collection_name)
+            mes = self.__createMachineReport(final, collection_name, default_monitoring_collection_name=monitoring_cname)
 
             payload = {
                 "progress": 100,
                 "msg": "Done",
-                "data": final
+                "data": final,
+                "db_status": mes
             }
 
+            #FINAL DATA
             yield f"data: {json.dumps(payload, default=convert_objectid)}\n\n"
 
 
@@ -295,9 +314,15 @@ class ReportActions:
         
         return final
     
-    def deleteTest(self):
-        self.__delete()
-        self.__delete(collection_name="Monitoring")
+    def deleteAllDataInTest(self, collection_name: str, monitoring_name: str):
+        if self.TEST_FLAG:
+            if self.__check_if_env_is_in_local():
+                self.__delete(collection_name=collection_name)
+                self.__delete(collection_name=monitoring_name)
+                return True
+            else:
+                raise ValueError("Environment must be in local if test flag is enabled.")
+        return False
 
 
 
