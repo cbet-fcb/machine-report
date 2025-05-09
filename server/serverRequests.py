@@ -36,7 +36,11 @@ class MonitoringActions:
 
             return message
         
-        db.create(query={"_id": convert_str(id), "does_match": does_match, **machine_report_data}, collection_name=machine_report_monitoring_cname)
+        db.update(
+            query={'_id': id},
+            new_values={'does_match': does_match},
+            collection_name=machine_report_monitoring_cname,
+        )
         return f'{SYSTEM_MESSAGE} will follow up on that. If this happens once again to you, please provide feedback immediately. Thank you for your feedback.'
 
 class ReportActions:
@@ -262,7 +266,7 @@ class ReportActions:
                 yield f"data: {{\"devmode\": \"enabled\", \"msg\": \"Feedback enabled\"}}\n\n"
             
             res['allow-feedback'] = enable_feedback
-            if enable_feedback or True:
+            if enable_feedback:
                 self.__createMachineReport(res, monitoring_cname, default_monitoring_collection_name=monitoring_cname)
 
 
