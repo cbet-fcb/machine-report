@@ -1,103 +1,228 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import React from "react";
+
+import Camera from "./assets/camera";
+
+import ServerRequests from "./api/ServerRequests";
+
+import ThemeControl from "../components/ThemeControl";
+import ProgressLoading from "../components/ProgressLoading";
+import OcrResults from "../components/OcrResults";
+
+interface ProgressData {
+  progress: number;
+  msg: string;
+  data?: {
+    machine_report: ocrResult;
+  };
+}
+interface OcrValue {
+  value: string | number;
+  unit?: string;
+}
+
+interface ocrResult {
+  [key: string]: OcrValue | string | number | undefined;
+}
+
+// function sleep(ms: number): Promise<void> {
+//   return new Promise((resolve) => setTimeout(resolve, ms));
+// }
+
+export default function Home(): React.JSX.Element {
+  const server = new ServerRequests();
+
+  const cameraInputRef = React.useRef<HTMLInputElement | null>(null);
+
+  const [ocrData, setOcrData] = React.useState<ocrResult | null>(null);
+
+  const [progressData, setProgressData] = React.useState<ProgressData>(
+    {} as ProgressData
+  );
+
+  const [loading, setLoading] = React.useState(false);
+
+  const [uploadedImage, setUploadedImage] = React.useState<string | null>(null);
+
+  const [allowFeedback, setAllowFeedback] = React.useState(true);
+  const [showFeedback, setShowFeedback] = React.useState(false);
+
+  const [machineReportId, setMachineReportId] = React.useState<string | null>(
+    null
+  );
+
+  const handleImageUpload = async (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setLoading(true);
+        setUploadedImage(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+
+      server.streamProcessImage(file, (data) => {
+        setProgressData(data);
+        if (data?.error) {
+          setLoading(false);
+          setProgressData({
+            progress: 0,
+            msg: "Error: " + data.error,
+          });
+          setOcrData(null);
+          console.log(data.error);
+          alert("Error Image ");
+        }
+        if (data?.data && data?.progress === 100) {
+          setOcrData(data.data);
+          setLoading(false);
+          setProgressData({
+            progress: 0,
+            msg: "...",
+          });
+          setAllowFeedback(data?.data?.["allow-feedback"] || false);
+          setShowFeedback(data?.data?.["allow-feedback"] || false);
+          setMachineReportId(data?.data?._id || null);
+          console.log(data);
+          alert("Image Process Success ");
+        }
+      });
+      setLoading(false);
+    }
+  };
+
+  const handleCameraClick = () => {
+    if (cameraInputRef.current) {
+      cameraInputRef.current.click();
+    }
+  };
+
+  const handleFeedback = async (feedback: boolean) => {
+    if (machineReportId) {
+      const res = await server.feedback(machineReportId, feedback);
+      if (res) {
+        alert("Feedback Sent");
+      } else {
+        alert("Error Sending Feedback");
+      }
+      setAllowFeedback(false);
+      setShowFeedback(false);
+    }
+  };
+
   return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+    <main className={` container !justify-start transition-all duration-300 `}>
+      {/* theme control */}
+      <div className="absolute top-5 right-5 z-50 shadow-lg border border-base-300 p-2 rounded-full">
+        <ThemeControl />
+      </div>
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+      <h1
+        className={`${
+          uploadedImage && "pt-10 md:pt-0"
+        } text-2xl tracking-[8px] mt-auto `}
+      >
+        Machine  Report
+      </h1>
+
+      {/* camera input component */}
+      <div className={` flex flex-col items-center justify-center gap-10 `}>
+        <input
+          type="file"
+          accept="image/*"
+          capture="environment"
+          className="hidden"
+          onChange={handleImageUpload}
+          ref={cameraInputRef}
+        />
+        <div
+          className="w-[75vw] md:w-max max-w-[75vw] btn btn-xl h-max tooltip tooltip-open tooltip-bottom md:tooltip-right group"
+          onClick={handleCameraClick}
+        >
+          <div className="tooltip-content bg-base-100 border border-base-content rounded-sm">
+            <div className=" font-light text-base-content">
+              Upload Something
+            </div>
+          </div>
+          <Camera className="size-20 group-hover:stroke-primary font-thin stroke-0.5  " />
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
+      </div>
+
+      <div className="w-[95vw] flex flex-col md:flex-row items-center justify-center gap-10 py-10 mb-auto transition-all duration-300 ">
+        {/* image preview modal */}
+        {!showFeedback && (
+          <OcrResults
+            ocrData={ocrData}
+            uploadedImage={uploadedImage}
+            loading={loading}
+            allowFeedback={allowFeedback}
+            showFeedback={showFeedback}
+            setShowFeedback={setShowFeedback}
           />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
+        )}
+
+        {/* upload loading modal */}
+        <ProgressLoading loading={loading} progressData={progressData} />
+
+        {/* feedback modal */}
+        {showFeedback && (
+          <div
+            className={`fixed inset-0 bg-black/80 z-50 flex flex-col h-screen w-full justify-start md:justify-center items-center transition-all duration-300 overflow-y-auto`}
+          >
+            <div className="h-max w-[95vw] flex flex-col md:flex-row items-center justify-center gap-10 pt-10 ">
+              <div
+                className={`${
+                  allowFeedback
+                    ? "text-base-100 border border-base-100"
+                    : "bg-base-100"
+                } relative w-[75vw] lg:w-[60vw] py-8 px-5 rounded-box flex flex-col gap-4`}
+              >
+                <button
+                  onClick={() => setShowFeedback(false)}
+                  className="absolute btn btn-xs btn-circle btn-outline top-1.5 right-1.5"
+                >
+                  x
+                </button>
+                <p className="w-full text-center">
+                  Do the result matches the picture?
+                </p>
+                <div className="w-full flex justify-evenly">
+                  <button
+                    className="btn btn-sm btn-outline"
+                    onClick={() => {
+                      handleFeedback(false);
+                    }}
+                  >
+                    No
+                  </button>
+                  <button
+                    onClick={() => {
+                      handleFeedback(true);
+                    }}
+                    className="btn btn-sm btn-primary"
+                  >
+                    Yes
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="h-max w-[95vw] flex flex-col md:flex-row items-center justify-center gap-10 py-10 ">
+              <OcrResults
+                ocrData={ocrData}
+                uploadedImage={uploadedImage}
+                loading={loading}
+                allowFeedback={allowFeedback}
+                showFeedback={showFeedback}
+                setShowFeedback={setShowFeedback}
+              />
+            </div>
+          </div>
+        )}
+      </div>
+    </main>
   );
 }
