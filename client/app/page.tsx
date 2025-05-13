@@ -8,7 +8,7 @@ import ServerRequests from "./api/ServerRequests";
 
 import ThemeControl from "../components/ThemeControl";
 import ProgressLoading from "../components/ProgressLoading";
-import OcrResults from "../components/OcrResults";
+import OcrResults from "../components/OcrResults"; 
 
 interface ProgressData {
   progress: number;
@@ -74,6 +74,7 @@ export default function Home(): React.JSX.Element {
           });
           setOcrData(null);
           console.log(data.error);
+          setUploadedImage(null);
           alert("Error Image ");
         }
         if (data?.data && data?.progress === 100) {
@@ -151,7 +152,7 @@ export default function Home(): React.JSX.Element {
         </div>
       </div>
 
-      <div className="w-[95vw] flex flex-col md:flex-row items-center justify-center gap-10 py-10 mb-auto transition-all duration-300 ">
+      <div className="w-[95vw] flex flex-col md:flex-row items-center justify-center gap-10 py-10 mb-auto transition-all duration-300  ">
         {/* image preview modal */}
         {!showFeedback && (
           <OcrResults
@@ -163,7 +164,7 @@ export default function Home(): React.JSX.Element {
             setShowFeedback={setShowFeedback}
           />
         )}
-
+ 
         {/* upload loading modal */}
         <ProgressLoading loading={loading} progressData={progressData} />
 
@@ -210,7 +211,7 @@ export default function Home(): React.JSX.Element {
               </div>
             </div>
 
-            <div className="h-max w-[95vw] flex flex-col md:flex-row items-center justify-center gap-10 py-10 ">
+            <div className="h-max w-[95vw] flex flex-col md:flex-row items-center justify-center gap-10 py-10">
               <OcrResults
                 ocrData={ocrData}
                 uploadedImage={uploadedImage}
