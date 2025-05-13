@@ -26,7 +26,7 @@ const ProgressLoading: React.FC<ProgressLoadingProps> = ({
         >
           <progress
             className="progress progress-info h-4 w-[80%]"
-            value={progressData?.progress || 0}
+            value={progressData?.progress || undefined}
             max="100"
           ></progress>
           <h3 className="text-white tracking-widest ">{progressData?.msg}</h3>
