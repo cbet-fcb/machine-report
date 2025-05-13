@@ -227,9 +227,6 @@ class ReportActions:
             yield f"data: {{\"progress\": 60, \"msg\": \"OCR complete. Normalizing text...\"}}\n\n"
             if self.TEST_FLAG:
                 yield f"data: {json.dumps({'stage': 'ocr processing', 'data': first_stage})}\n\n"
- 
-
-
 
             #******************************
             # Stage 1.1: Normalization  ***
