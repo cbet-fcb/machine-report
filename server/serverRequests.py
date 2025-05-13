@@ -54,10 +54,17 @@ class ReportActions:
         res = db.delete(query=query, collection_name=collection_name)
         pass
 
-    def __createMachineReport(self, query: dict, collection_name: str, default_monitoring_collection_name: str = "Monitoring") -> str:
-        if self.created_documents >= self.MAX_DOCUMENTS_TO_BE_STORED and collection_name == default_monitoring_collection_name:
-            return f'Limit of {self.MAX_DOCUMENTS_TO_BE_STORED} reached, Skipping report.'
-        
+    def __createMachineReport(self, query: dict, collection_name: str, success: bool = False, default_monitoring_collection_name: str = "Monitoring") -> str:
+        # get machine-number
+        if not success: 
+            if self.created_documents >= self.MAX_DOCUMENTS_TO_BE_STORED and collection_name == default_monitoring_collection_name:
+                return f'Limit of {self.MAX_DOCUMENTS_TO_BE_STORED} reached, Skipping report.'
+        else:
+            machine_number = query.get('machine-number')
+
+            if not machine_number:
+                raise ValueError('Machine number not found')
+
         try:
             res = db.create(data=query, collection_name=collection_name)
             if not res:
@@ -71,6 +78,53 @@ class ReportActions:
             return mes
         except Exception as e:
             return f"Error during machine report creation: {e}"
+        
+    def __is_duplicate_report(self, progression_report: dict, minutes: int = 30) -> bool:
+        machine_report = progression_report.get('machine_report')
+        if not machine_report:
+            raise ValueError('Expected machiner report to be present, but got None')
+        
+        machine_numbers = machine_report.get('machine_number', [])
+
+        raw_timestamp = progression_report.get('process_begins_at')
+
+        if not machine_numbers or not raw_timestamp:
+            return False 
+
+        if isinstance(raw_timestamp, str):
+            process_time = datetime.datetime.strptime(raw_timestamp, "%Y-%m-%d %H:%M:%S").replace(tzinfo=datetime.timezone.utc)
+        else:
+            process_time = raw_timestamp
+
+
+        # Normalize time to 30-min interval
+        interval = datetime.timedelta(minutes=minutes)
+        snapped_start = TimerUtils.normalize_to_interval(process_time, interval)
+        snapped_end = snapped_start + interval
+
+        # Build query
+        query = {
+            "machine-number": {"$in": machine_numbers},
+        }
+
+        # Query MongoDB for matches
+        result = db.readWithPagination(
+            query=query,
+            collection_name="Machine Report",
+            page=1,
+            limit=5,
+            projection={},
+            sort={},
+            reverse=True
+        )
+
+        for doc in result.get('data', []):
+            db_ts = datetime.datetime.fromisoformat(doc['processed_at'])
+            if snapped_start <= db_ts < snapped_end:
+                return True
+
+        return False
+
 
     def __check_if_env_is_in_local(self) -> bool:
         from AppConfig import AppConfig
@@ -237,7 +291,7 @@ class ReportActions:
             yield f"data: {{\"progress\": 90, \"msg\": \"Finalizing machine report...\"}}\n\n"
             
             res['machine_report'] = third_stage
-            res['process_ends_at'] = self.__initialize_process_data('process_ends_at')
+            res = {**res, **self.__initialize_process_data('process_ends_at')}
             res['version'] = machine_report_builder.version.__str__()
             
             if self.TEST_FLAG:
@@ -278,6 +332,22 @@ class ReportActions:
 
 
             final = self.__generate_final_report(enable_feedback, third_stage, list_of_targets, version.__str__())
+            minutes = 30
+            if self.__is_duplicate_report(res, minutes):
+                machine_number = final.get('machine-number')
+                current_time = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=8)))  # Current time in PHT
+                next_available_time = TimerUtils.normalize_to_interval(datetime.datetime.now(datetime.timezone.utc), datetime.timedelta(minutes=minutes)) + datetime.timedelta(minutes=minutes)
+                
+                # Format both times to 12-hour clock with AM/PM
+                formatted_current_time = current_time.strftime('%I:%M:%S %p')
+                formatted_next_available_time = next_available_time.strftime('%I:%M:%S %p')
+                
+                raise ValueError(
+                    f'{machine_number} has already been created. It is currently {formatted_current_time}, please wait until {formatted_next_available_time} to proceed.'
+                )
+
+
+            final['processed_at'] = str(res['process_begins_at'])
             mes = self.__createMachineReport(final, collection_name, default_monitoring_collection_name=monitoring_cname)
 
             payload = {
@@ -302,7 +372,7 @@ class ReportActions:
     # Helper Methods for Cleanliness
     def __initialize_process_data(self, key: str):
         return {
-            key: datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            key: datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=8)))
         }
 
     def __check_missing_keys(self, 

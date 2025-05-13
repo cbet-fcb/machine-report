@@ -12,8 +12,8 @@ import cv2
 import base64
 import re
 
-from imageHandler import ImageHandler
 from ocr import OCREngine
+from imageHandler import ImageHandler
 from nlp import NLPEngine
 from textProcessor import Normalizer, TextProcessor
 from machineReportHandler import MachineReportHandler
@@ -49,11 +49,11 @@ class Version:
 #           ||
 #          \  /
 #           \/
-#          NLP<-------TEXT(INPUT STREAM)
+#          NLP
 #           ||
 #          \  /
 #           \/
-#      TEXTPROCESSOR
+#     TEXT PROCESSOR
 #           ||
 #          \  /
 #           \/
@@ -74,6 +74,49 @@ class TargetMaker:
         if alias == "":
             alias = unit_name
         return unit_name, alias
+
+class TimerUtils:
+    @staticmethod
+    def make_timer(hour: float, minute: float, second: float) -> Tuple[int, int, float]:
+        """
+        Normalize overflowing time into a (h, m, s) tuple, clamped to 24 hours max.
+        """
+        total_seconds = hour * 3600 + minute * 60 + second
+
+        if total_seconds >= 86400:
+            raise ValueError("Interval cannot exceed 24 hours.")
+
+        h = int(total_seconds // 3600)
+        total_seconds %= 3600
+        m = int(total_seconds // 60)
+        s = round(total_seconds % 60, 6)
+
+        return h, m, s
+
+    @staticmethod
+    def normalize_to_interval(dt: datetime.datetime, interval: datetime.timedelta) -> datetime:
+        """
+        Snap the given datetime to the start of the nearest interval, in Philippine Time (UTC+8).
+        """
+        # Set Philippine Time Zone (UTC+8)
+        pht = datetime.timezone(datetime.timedelta(hours=8))
+        
+        # Ensure the datetime is in PHT (if not already aware)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=pht)  # Make it aware if it's naive
+        
+        # Ensure epoch is in PHT
+        epoch = datetime.datetime(1970, 1, 1, tzinfo=pht)
+        
+        # Calculate the number of seconds since the epoch
+        seconds_since_epoch = (dt - epoch).total_seconds()
+        interval_seconds = interval.total_seconds()
+        
+        # Snap to the nearest interval
+        snapped_seconds = (seconds_since_epoch // interval_seconds) * interval_seconds
+        
+        # Return the snapped time in PHT
+        return epoch + datetime.timedelta(seconds=snapped_seconds)
 
 class MachineReportInputWrapper(BaseModel):
     image_path : str = Field(default=None, description="supports Path, url")
@@ -227,4 +270,6 @@ class MachineReportBuilder:
         return result
 
 if __name__ == '__main__':
+    val = TimerUtils.normalize_to_interval(dt=datetime.datetime(), interval=datetime.timedelta(minutes=30))
+    print(val)
     pass

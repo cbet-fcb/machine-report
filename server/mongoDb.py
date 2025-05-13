@@ -96,68 +96,45 @@ class mongoDb:
         return data
 
     def readWithPagination(self,
-                           query,
-                           collection_name,
-                           page,
-                           limit,
-                           projection={},
-                           sort={
-                               'keyToSort': None,
-                               'sortOrder': None
-                           },
-                           reverse=False,
-                           session=None):
+                        query,
+                        collection_name,
+                        page,
+                        limit,
+                        projection={},
+                        sort=None,
+                        reverse=False,
+                        session=None):
+        
+        if sort is None:
+            sort = {'keyToSort': None, 'sortOrder': None}
 
-        # add validations for page and limit
-        if limit == None or limit < 1:
+        if limit is None or limit < 1:
             if page > 1:
-                raise ValueError(
-                    "Page must be 1 if limit is None or less than 1")
-        # Read documents from the collection with pagination.
-        start_time = time.time()  # get current time
+                raise ValueError("Page must be 1 if limit is None or less than 1")
 
-        # Get the total number of documents matching the query
+        start_time = time.time()
         totalDocuments = self.db[collection_name].count_documents(query)
 
-        #set limit to total document if limit == None
         if limit is None:
-            limit = totalDocuments  # or any sensible large number
+            limit = totalDocuments
 
-        # Create the MongoDB query
-        cursor = self.db[collection_name].find(query,
-                                               projection,
-                                               session=session)
+        cursor = self.db[collection_name].find(query, projection, session=session)
 
         if reverse:
             cursor = cursor.sort([('$natural', -1)])
 
-        # Apply sorting if keyToSort is provided
-        if sort['keyToSort'] and sort['sortOrder'] != 0:
+        if isinstance(sort, dict) and sort.get('keyToSort') and sort.get('sortOrder') is not None:
             cursor = cursor.sort(sort['keyToSort'], sort['sortOrder'])
 
-        # Calculate the number of documents to skip
         skip = (page - 1) * limit
-        # Apply skip and limit for pagination AFTER sorting
         cursor = cursor.skip(skip).limit(limit)
-
-        # Retrieve the documents
         data = list(cursor)
 
-        # Calculate total pages
-        if totalDocuments == 0:
-            totalPages = 0
-        else:
-            totalPages = (totalDocuments + limit - 1) // limit
+        totalPages = (totalDocuments + limit - 1) // limit if totalDocuments > 0 else 0
 
-        end_time = time.time()  # get current time after query
+        elapsed_time_ms = (time.time() - start_time) * 1000
+        print(f"{collection_name} {query} Response time: {elapsed_time_ms:.2f} ms")
 
-        elapsed_time = end_time - start_time  # calculate elapsed time
-        elapsed_time_ms = elapsed_time * 1000  # convert to milliseconds
-
-        print(collection_name + ' ' + str(query) +
-              " Response time: %f ms" % elapsed_time_ms)
-
-        # Return the paginated data along with pagination metadata
         return {
             'data': data,
             'page': page,
@@ -165,6 +142,7 @@ class mongoDb:
             'totalDocuments': totalDocuments,
             'totalPages': totalPages
         }
+
 
     def update(self,
                query,
