@@ -53,7 +53,7 @@ def streamProcessImage():
         file.save(filename)
 
         def generate():
-            yield f"data: {{\"progress\": 0, \"msg\": \"File uploaded, beginning processing...\"}}\n\n"
+            yield f"data: {{\"progress\": 0, \"msg\": \"Image uploaded, beginning processing...\"}}\n\n"
             yield from sr.streamProcessImage(filename)
 
         return Response(stream_with_context(generate()), mimetype='text/event-stream')

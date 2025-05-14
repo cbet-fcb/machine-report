@@ -1,6 +1,10 @@
 from objects import *
 import time
 import json
+import os
+import dotenv
+
+dotenv.load_dotenv()
 
 db = mongoDb()
 
@@ -45,10 +49,6 @@ class MonitoringActions:
 
 class ReportActions:
     def __init__(self, MAX_DOCUMENTS_TO_BE_STORED: int = 50):
-        import os
-        import dotenv
-        dotenv.load_dotenv()
-
         self.TEST_SUITE = os.getenv("TEST_SUITE_REPORT_ACTIONS", "False") == "True"
         self.ENABLE_FEEDBACK = os.getenv("TSRA_ENABLE_FEEDBACK", "False") == "True"
         self.DELETE_ALL_DATA = os.getenv("TSRA_DELETE_ALL_DATA", "False") == "True"
@@ -88,8 +88,11 @@ class ReportActions:
         except Exception as e:
             return f"Error during machine report creation: {e}"
         
-    def __is_duplicate_report(self, progression_report: dict, minutes: int = 30) -> bool:
-        if self.TEST_SUITE and not self.DISABLE_SCHEDULER:
+    def __is_duplicate_report(self, progression_report: dict, minutes: int = 30, limit: int = None) -> bool:
+        if not limit:
+            limit = int(os.getenv("TOTAL_MACHINE", "0")) + 1
+        
+        if not self.TEST_SUITE or not self.DISABLE_SCHEDULER:
             machine_report = progression_report.get('machine_report')
             if not machine_report:
                 raise ValueError('Expected machine report to be present, but got None. If error persists, please add a feedback.')
@@ -122,7 +125,7 @@ class ReportActions:
                 query=query,
                 collection_name="Machine Report",
                 page=1,
-                limit=14,
+                limit=limit,
                 projection={},
                 sort={},
                 reverse=True

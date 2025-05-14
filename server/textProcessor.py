@@ -1,10 +1,15 @@
 import re
 from typing import List, Dict, Tuple, Optional
 from rapidfuzz import process, fuzz
+import os
+import dotenv
+dotenv.load_dotenv()
+
 
 class IDExtractor:
     def __init__(self):
-        self.known_ids = {f"Machine {i}" for i in range(1, 14)}
+        limit = int(os.getenv("TOTAL_MACHINE", "0"))
+        self.known_ids = {f"Machine {i}" for i in range(1, limit)}
         self.learned_ids = set()
         self.similarity_threshold = 85
 
