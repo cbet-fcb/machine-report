@@ -8,7 +8,7 @@ dotenv.load_dotenv()
 
 class IDExtractor:
     def __init__(self):
-        limit = int(os.getenv("TOTAL_MACHINE", "0"))
+        limit = int(os.getenv("TOTAL_MACHINE", "0")) + 1
         self.known_ids = {f"Machine {i}" for i in range(1, limit)}
         self.learned_ids = set()
         self.similarity_threshold = 85
