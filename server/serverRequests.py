@@ -122,7 +122,7 @@ class ReportActions:
                 query=query,
                 collection_name="Machine Report",
                 page=1,
-                limit=5,
+                limit=14,
                 projection={},
                 sort={},
                 reverse=True
