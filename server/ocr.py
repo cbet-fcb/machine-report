@@ -70,17 +70,35 @@ class OCREngine:
         """
         Group OCR word boxes into text lines with angle-aware projection.
         """
+        if not results or not isinstance(results, list) or not results[0]:
+            raise ValueError("OCR results are empty or malformed")
+
         lines = defaultdict(list)
 
-        for box, (text, confidence) in results[0]:
-            angle = self.compute_angle(box)
-            center = tuple(sum(p[i] for p in box) / 4.0 for i in (0, 1))
-            projected_y = self.project_point_onto_angle(center, angle)
+        for item in results[0]:
+            if len(item) != 2:
+                continue  # skip malformed entries
 
-            matched_key = next((k for k in lines if abs(k - projected_y) <= y_threshold), None)
-            key = matched_key if matched_key is not None else projected_y
+            box, (text, confidence) = item
 
-            lines[key].append({"text": text, "confidence": round(confidence, 4)})
+            if not text:
+                continue  # skip empty text
+
+            try:
+                angle = self.compute_angle(box)
+                center = tuple(sum(p[i] for p in box) / 4.0 for i in (0, 1))
+                projected_y = self.project_point_onto_angle(center, angle)
+
+                matched_key = next((k for k in lines if abs(k - projected_y) <= y_threshold), None)
+                key = matched_key if matched_key is not None else projected_y
+
+                lines[key].append({
+                    "text": text,
+                    "confidence": round(confidence, 4)
+                })
+            except Exception as e:
+                print(f"Skipping malformed box: {e}")
+                continue
 
         grouped_lines = []
         for idx, (_, words) in enumerate(sorted(lines.items(), key=lambda x: x[0]), start=1):
