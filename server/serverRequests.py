@@ -72,7 +72,7 @@ class ReportActions:
             machine_number = query.get('machine-number')
 
             if not machine_number:
-                raise ValueError('Machine number not found')
+                raise ValueError('Machine number not found. If error persists, please add a feedback.')
 
         try:
             res = db.create(data=query, collection_name=collection_name)
@@ -92,7 +92,7 @@ class ReportActions:
         if self.TEST_SUITE and not self.DISABLE_SCHEDULER:
             machine_report = progression_report.get('machine_report')
             if not machine_report:
-                raise ValueError('Expected machiner report to be present, but got None')
+                raise ValueError('Expected machine report to be present, but got None. If error persists, please add a feedback.')
             
             machine_numbers = machine_report.get('machine_number', [])
 
@@ -151,7 +151,7 @@ class ReportActions:
         elif type == acceptable_types[1]:
             input = MachineReportInputWrapper(raw_text=data)
         else:
-            raise ValueError(f'Expected types to be in {acceptable_types} but got {type}')
+            raise ValueError(f'Expected types to be in {acceptable_types} but got {type}. If error persists, please add a feedback.')
         
         builder = MachineReportBuilder(input, list_of_targets)
         return builder.build()

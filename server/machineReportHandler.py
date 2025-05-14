@@ -25,7 +25,7 @@ class MachineReportHandler(MachineReport):
     def _get_id_pair(nlp_output: dict) -> Dict[str, str]:
         ids_info = nlp_output.get('ids_info')
         if ids_info is None:
-            raise ValueError('Cannot find ids_info')
+            raise ValueError('Cannot find ids_info. If error persists, please add a feedback.')
         return ids_info
 
     def get_value(self, nlp_output: dict) -> List[str]:

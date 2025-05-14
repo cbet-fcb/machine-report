@@ -70,7 +70,7 @@ class TargetMaker:
         If alias is "", the alias will be the unit_name
         """
         if not unit_name:
-            raise ValueError('Unit name or alias must not be empty')
+            raise ValueError('Unit name or alias must not be empty. If error persists, please add a feedback.')
         if alias == "":
             alias = unit_name
         return unit_name, alias
@@ -141,7 +141,7 @@ class MachineReportBuilder:
         self.input_wrapper = input
         self.flags = self.input_wrapper.provide_flag()
         if not any(self.flags.values()):
-            raise ValueError("Either 'image_path' or 'raw_text' must be provided.")
+            raise ValueError("Either 'image_path' or 'raw_text' must be provided. If error persists, please add a feedback.")
 
         
         self.version = version
@@ -173,7 +173,7 @@ class MachineReportBuilder:
                         or OCR processing fails.
         """
         if not image_path.strip():
-            raise ValueError('No image is given, please try again.')
+            raise ValueError('No image is given. If error persists, please add a feedback.')
             
         image_array = self.image_handler.load_image(image_path)
         if not image_array.any():
@@ -190,7 +190,7 @@ class MachineReportBuilder:
         CONVERT RAW TEXT TO PROCESSED TEXT (separating joined text happens here)
         """
         if not text:
-            raise ValueError('No text is given, please try again.')
+            raise ValueError('No text is given. If error persists, please add a feedback.')
         
         processed_text = self.nlp_engine.handle_text(text)
         if not processed_text or not processed_text.get("tokens"):

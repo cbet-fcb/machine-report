@@ -55,8 +55,7 @@ class OCREngine:
             )
             return grouped_text.strip()
         except Exception as e:
-            # Optionally log the problematic structure
-            raise ValueError(f"Failed to format OCR result: {e}")
+            raise ValueError(f"Unable to proceed: {e}. If error persists, please add a feedback.")
 
     def compute_angle(self, box):
         (x1, y1), (x2, y2) = box[0], box[3]
@@ -71,7 +70,7 @@ class OCREngine:
         Group OCR word boxes into text lines with angle-aware projection.
         """
         if not results or not isinstance(results, list) or not results[0]:
-            raise ValueError("OCR results are empty or malformed")
+            raise ValueError("Processing image to text has failed. If error persists, please add a feedback.")
 
         lines = defaultdict(list)
 
