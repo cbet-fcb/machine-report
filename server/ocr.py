@@ -36,18 +36,27 @@ class OCREngine:
         ocr_res = self.ocr_engine.ocr(image_array, cls=True)
         return self.process_ocr_output(ocr_res)
 
-    def process_ocr_output(self, ocr_result: list) -> str | None:
+    def process_ocr_output(self, ocr_result: list) -> str:
         """
         Process the raw OCR output to group text by lines.
+        Returns empty string if nothing is found.
         """
-        if ocr_result:
-            grouped_lines = self.group_text_lines(ocr_result)
-        
-            # For example, join the text for each line
-            grouped_text = " ".join([" ".join([word["text"] for word in line["words"]]) for line in grouped_lines])
-            return grouped_text     
-        
-        return None
+        if not ocr_result:
+            return ""
+
+        grouped_lines = self.group_text_lines(ocr_result)
+        if not grouped_lines:
+            return ""
+
+        try:
+            grouped_text = " ".join(
+                " ".join(word.get("text", "") for word in line.get("words", []))
+                for line in grouped_lines
+            )
+            return grouped_text.strip()
+        except Exception as e:
+            # Optionally log the problematic structure
+            raise ValueError(f"Failed to format OCR result: {e}")
 
     def compute_angle(self, box):
         (x1, y1), (x2, y2) = box[0], box[3]

@@ -180,7 +180,7 @@ class MachineReportBuilder:
             raise ValueError(f'It cannot load the image, please send image-formatted file (jpg/jpeg, png, etc.). If error persists, please add a feedback.')
         
         res = self.ocr_engine.run_ocr(image_array=image_array)
-        if not res:
+        if res == "":
             raise ValueError('The captured image shows no text. If error persists, please add a feedback.')
         
         return res
