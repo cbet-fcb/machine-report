@@ -173,15 +173,15 @@ class MachineReportBuilder:
                         or OCR processing fails.
         """
         if not image_path.strip():
-            raise ValueError('Image path must have a value in it')
+            raise ValueError('No image is given, please try again.')
             
         image_array = self.image_handler.load_image(image_path)
         if not image_array.any():
-            raise ValueError(f'Processing {truncate_string(image_path)} to an image array failed')
+            raise ValueError(f'It cannot load the image, please send image-formatted file (jpg/jpeg, png, etc.). If error persists, please add a feedback.')
         
         res = self.ocr_engine.run_ocr(image_array=image_array)
         if not res:
-            raise ValueError('Processing image array to unprocessed text failed')
+            raise ValueError('The captured image shows no text. If error persists, please add a feedback.')
         
         return res
 
@@ -190,11 +190,11 @@ class MachineReportBuilder:
         CONVERT RAW TEXT TO PROCESSED TEXT (separating joined text happens here)
         """
         if not text:
-            raise ValueError('Text should not be empty')
+            raise ValueError('No text is given, please try again.')
         
         processed_text = self.nlp_engine.handle_text(text)
         if not processed_text or not processed_text.get("tokens"):
-            raise ValueError('Processing from lower-cased text to processed text failed or produced empty output')
+            raise ValueError('The system cannot discern any useful data of the image provided. If error persists, please add a feedback.')
         
         return processed_text
     
@@ -203,7 +203,7 @@ class MachineReportBuilder:
         CONVERT PROCESSED TEXT TO MACHINE REPORT (get the targets)    
         """
         if not nlp_output_as_input or 'tokens' not in nlp_output_as_input:
-            raise ValueError("Invalid NLP output: missing required 'tokens' field")
+            raise ValueError("The system cannot discern any useful data of the image provided. If error persists, please add a feedback.")
 
         data = self.text_processor.process_text(nlp_output=nlp_output_as_input)
 

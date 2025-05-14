@@ -33,7 +33,7 @@ class MachineReportHandler(MachineReport):
 
     def generate_machine_report(self, nlp_output: dict) -> Dict[str, Dict]:
         if "unit_info" not in nlp_output or "ids_info" not in nlp_output:
-            raise ValueError("Missing required keys: 'unit_info' and/or 'ids_info' in input.")
+            raise ValueError("During the creation of machine-report, the data it needs cannot be found. If error persists, please add a feedback.")
 
         result = {}
         for unit, alias in self.targets:
