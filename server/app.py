@@ -93,9 +93,7 @@ def feedback():
 
 @app.route('/deleteAllDataInTest', methods=['GET'])
 def deleteAllDataInTest():
-    sr.TEST_FLAG = True
     sr.deleteAllDataInTest(collection_name="Machine Report", monitoring_name="Monitoring")  
-    sr.TEST_FLAG = False
     return jsonify({"message": "Test deleted"}), 200
     pass
 

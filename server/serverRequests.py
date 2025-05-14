@@ -44,8 +44,17 @@ class MonitoringActions:
         return f'{SYSTEM_MESSAGE} will follow up on that. If this happens once again to you, please provide feedback immediately. Thank you for your feedback.'
 
 class ReportActions:
-    def __init__(self, MAX_DOCUMENTS_TO_BE_STORED: int = 50, TEST_FLAG: bool = False):
-        self.TEST_FLAG = TEST_FLAG
+    def __init__(self, MAX_DOCUMENTS_TO_BE_STORED: int = 50):
+        import os
+        import dotenv
+        dotenv.load_dotenv()
+
+        self.TEST_SUITE = os.getenv("TEST_SUITE_REPORT_ACTIONS", "False") == "True"
+        self.ENABLE_FEEDBACK = os.getenv("TSRA_ENABLE_FEEDBACK", "False") == "True"
+        self.DELETE_ALL_DATA = os.getenv("TSRA_DELETE_ALL_DATA", "False") == "True"
+        self.DISABLE_SCHEDULER = os.getenv("TSRA_DISABLE_SCHEDULER", "False") == "True"
+        self.DISABLE_CHECKING_OF_KEYS = os.getenv("TSRA_DISABLE_CHECKING_OF_KEYS", "False") == "True"
+
         self.MAX_DOCUMENTS_TO_BE_STORED = MAX_DOCUMENTS_TO_BE_STORED
         self.created_documents = 0
         pass
@@ -80,48 +89,49 @@ class ReportActions:
             return f"Error during machine report creation: {e}"
         
     def __is_duplicate_report(self, progression_report: dict, minutes: int = 30) -> bool:
-        machine_report = progression_report.get('machine_report')
-        if not machine_report:
-            raise ValueError('Expected machiner report to be present, but got None')
-        
-        machine_numbers = machine_report.get('machine_number', [])
+        if self.TEST_SUITE and not self.DISABLE_SCHEDULER:
+            machine_report = progression_report.get('machine_report')
+            if not machine_report:
+                raise ValueError('Expected machiner report to be present, but got None')
+            
+            machine_numbers = machine_report.get('machine_number', [])
 
-        raw_timestamp = progression_report.get('process_begins_at')
+            raw_timestamp = progression_report.get('process_begins_at')
 
-        if not machine_numbers or not raw_timestamp:
-            return False 
+            if not machine_numbers or not raw_timestamp:
+                return False 
 
-        if isinstance(raw_timestamp, str):
-            process_time = datetime.datetime.strptime(raw_timestamp, "%Y-%m-%d %H:%M:%S").replace(tzinfo=datetime.timezone.utc)
-        else:
-            process_time = raw_timestamp
+            if isinstance(raw_timestamp, str):
+                process_time = datetime.datetime.strptime(raw_timestamp, "%Y-%m-%d %H:%M:%S").replace(tzinfo=datetime.timezone.utc)
+            else:
+                process_time = raw_timestamp
 
 
-        # Normalize time to 30-min interval
-        interval = datetime.timedelta(minutes=minutes)
-        snapped_start = TimerUtils.normalize_to_interval(process_time, interval)
-        snapped_end = snapped_start + interval
+            # Normalize time to 30-min interval
+            interval = datetime.timedelta(minutes=minutes)
+            snapped_start = TimerUtils.normalize_to_interval(process_time, interval)
+            snapped_end = snapped_start + interval
 
-        # Build query
-        query = {
-            "machine-number": {"$in": machine_numbers},
-        }
+            # Build query
+            query = {
+                "machine-number": {"$in": machine_numbers},
+            }
 
-        # Query MongoDB for matches
-        result = db.readWithPagination(
-            query=query,
-            collection_name="Machine Report",
-            page=1,
-            limit=5,
-            projection={},
-            sort={},
-            reverse=True
-        )
+            # Query MongoDB for matches
+            result = db.readWithPagination(
+                query=query,
+                collection_name="Machine Report",
+                page=1,
+                limit=5,
+                projection={},
+                sort={},
+                reverse=True
+            )
 
-        for doc in result.get('data', []):
-            db_ts = datetime.datetime.fromisoformat(doc['processed_at'])
-            if snapped_start <= db_ts < snapped_end:
-                return True
+            for doc in result.get('data', []):
+                db_ts = datetime.datetime.fromisoformat(doc['processed_at'])
+                if snapped_start <= db_ts < snapped_end:
+                    return True
 
         return False
 
@@ -198,12 +208,12 @@ class ReportActions:
         monitoring_cname: str = 'Monitoring',
     ):
         is_local_dev_env = self.__check_if_env_is_in_local()
-        if self.TEST_FLAG and is_local_dev_env:
+        if self.TEST_SUITE and self.DELETE_ALL_DATA and is_local_dev_env:
             yield f"data: {{\"devmode\": \"enabled\", \"msg\": \"Deleting all data\"}}\n\n"
             self.__delete(collection_name=collection_name)
             self.__delete(collection_name=monitoring_cname)
-        elif not is_local_dev_env and self.TEST_FLAG:
-            raise ValueError('Environment must be in local if test flag is enabled')
+        elif not is_local_dev_env and self.TEST_SUITE:
+            raise ValueError('Environment must be in local if test suite and delete all data is enabled')
         
         machine_report_builder = MachineReportBuilder(
             input=MachineReportInputWrapper(image_path=image),
@@ -225,7 +235,7 @@ class ReportActions:
             
             first_stage = machine_report_builder.image_to_unprocessed_text(image)
             yield f"data: {{\"progress\": 60, \"msg\": \"OCR complete. Normalizing text...\"}}\n\n"
-            if self.TEST_FLAG:
+            if self.TEST_SUITE:
                 yield f"data: {json.dumps({'stage': 'ocr processing', 'data': first_stage})}\n\n"
 
             #******************************
@@ -238,7 +248,7 @@ class ReportActions:
             clean_malforming_floats = machine_report_builder.normalizer.normalize_floats_in_text(clean_leading_zero)
             res['unprocessed_text'] = clean_malforming_floats
             yield f"data: {{\"progress\": 70, \"msg\": \"Cleaning up potential errors\"}}\n\n"
-            if self.TEST_FLAG:
+            if self.TEST_SUITE:
                 yield f"data: {json.dumps({'stage': 'normalizing text', 'data': clean_malforming_floats})}\n\n" 
 
 
@@ -252,7 +262,7 @@ class ReportActions:
             second_stage = machine_report_builder.unprocessed_to_processed_text(clean_malforming_floats)
             yield f"data: {{\"progress\": 80, \"msg\": \"Separation of text has been successful\"}}\n\n"
             res['processed_text'] = second_stage
-            if self.TEST_FLAG:
+            if self.TEST_SUITE:
                 yield f"data: {json.dumps({'stage': 'natural language processing', 'data': second_stage})}\n\n" 
 
 
@@ -266,7 +276,7 @@ class ReportActions:
             # clean_up_duplicate_decimal_points_in_float = machine_report_builder.normalizer.remove_duplicate_decimal_points_in_float(second_stage['tokens'])
             # second_stage['tokens'] = clean_up_duplicate_decimal_points_in_float
             # res['processed_text'] = second_stage
-            # if self.TEST_FLAG:
+            # if self.TEST_SUITE:
             #     yield f"data: {json.dumps({'stage': 'natural language processing', 'data': second_stage})}\n\n"
 
 
@@ -280,7 +290,7 @@ class ReportActions:
                 machine_report_builder.machine_report_handler.targets,
                 second_stage
             )
-            if self.TEST_FLAG:
+            if self.TEST_SUITE:
                 yield f"data: {json.dumps({'stage': 'generating machine report', 'data': third_stage})}\n\n"
 
             if not third_stage:
@@ -291,7 +301,7 @@ class ReportActions:
             res = {**res, **self.__initialize_process_data('process_ends_at')}
             res['version'] = machine_report_builder.version.__str__()
             
-            if self.TEST_FLAG:
+            if self.TEST_SUITE and self.DISABLE_CHECKING_OF_KEYS:
                 yield f"data: {{\"devmode\": \"enabled\", \"msg\": \"Disabling checking of keys\"}}\n\n"
             else:
                 missing_keys = self.__check_missing_keys(list_of_targets, third_stage)
@@ -308,16 +318,16 @@ class ReportActions:
 
 
             # If test flag is set to true then no failure rate then if created documents and max documents stored
-            failure_rate = 0 if self.TEST_FLAG else (
+            failure_rate = 0 if self.TEST_SUITE and self.ENABLE_FEEDBACK else (
                 95 if self.created_documents < self.MAX_DOCUMENTS_TO_BE_STORED else 100
             )
 
             enable_feedback = probability_generator(failure_rate=failure_rate)
-            if self.TEST_FLAG:
+            if self.TEST_SUITE:
                 yield f"data: {{\"devmode\": \"enabled\", \"msg\": \"Feedback enabled\"}}\n\n"
             
             res['allow-feedback'] = enable_feedback
-            if enable_feedback:
+            if self.ENABLE_FEEDBACK and self.TEST_SUITE:
                 self.__createMachineReport(res, monitoring_cname, default_monitoring_collection_name=monitoring_cname)
 
 
@@ -331,8 +341,9 @@ class ReportActions:
             final = self.__generate_final_report(enable_feedback, third_stage, list_of_targets, version.__str__())
             minutes = 30
             if self.__is_duplicate_report(res, minutes):
+                PHT = datetime.timezone(datetime.timedelta(hours=8))
                 machine_number = final.get('machine-number')
-                current_time = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=8)))  # Current time in PHT
+                current_time = datetime.datetime.now(PHT)  # Current time in PHT
                 next_available_time = TimerUtils.normalize_to_interval(datetime.datetime.now(datetime.timezone.utc), datetime.timedelta(minutes=minutes)) + datetime.timedelta(minutes=minutes)
                 
                 # Format both times to 12-hour clock with AM/PM
@@ -410,7 +421,7 @@ class ReportActions:
         return final
     
     def deleteAllDataInTest(self, collection_name: str, monitoring_name: str):
-        if self.TEST_FLAG:
+        if self.TEST_SUITE and self.DELETE_ALL_DATA:
             if self.__check_if_env_is_in_local():
                 self.__delete(collection_name=collection_name)
                 self.__delete(collection_name=monitoring_name)
