@@ -2,6 +2,8 @@ import React from "react";
 
 import Image from "./Image";
 
+import FormSubmit from "./FormSubmit";
+
 interface OcrResultsProps {
   ocrData: ocrResult | null;
   uploadedImage: string | null;
@@ -31,6 +33,31 @@ const OcrResults: React.FC<OcrResultsProps> = ({
   return (
     <>
       {ocrData?._id && uploadedImage && !loading && (
+        <div className="flex flex-col md:flex-row justify-evenly relative py-10 px-5 gap-5 overflow-y-auto border border-base-300 rounded-box">
+          {allowFeedback && !showFeedback && (
+            <button
+              onClick={() => setShowFeedback(true)}
+              className={`
+                 hover:w-[70px] after:content-['?'] hover:after:content-['Feedback'] 
+                transition-all duration-300 absolute btn btn-primary btn-xs btn-circle top-2 right-5 origin-left
+                `}
+            ></button>
+          )}
+
+          <div className="w-full md:w-1/2 h-[50vh] flex items-center">
+            <Image
+            src={uploadedImage}
+            className={`${
+              loading && "animate-pulse"
+            }  max-h-full max-w-full overflow-clip bg-base-200 rounded-box `}
+          />
+          </div>
+
+          <FormSubmit data={ocrData}/>
+        </div>
+      )}
+
+      {/* {ocrData?._id && uploadedImage && !loading && (
         <div className="relative w-[75vw] lg:w-[60vw] py-10 px-5 columns-1 md:columns-2 overflow-y-auto border border-base-300 rounded-box">
           {allowFeedback && !showFeedback && (
             <button
@@ -69,7 +96,7 @@ const OcrResults: React.FC<OcrResultsProps> = ({
             </div>
           ))}
         </div>
-      )}
+      )} */}
 
       {/* {ocrData?._id && uploadedImage && !loading && (
         <div className=" flex items-center justify-center w-[75vw] md:w-max max-w-[75vw] ">

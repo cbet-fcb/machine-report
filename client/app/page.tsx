@@ -26,10 +26,6 @@ interface ocrResult {
   [key: string]: OcrValue | string | number | undefined;
 }
 
-// function sleep(ms: number): Promise<void> {
-//   return new Promise((resolve) => setTimeout(resolve, ms));
-// }
-
 export default function Home(): React.JSX.Element {
   const server = new ServerRequests();
 
@@ -56,6 +52,10 @@ export default function Home(): React.JSX.Element {
     event: React.ChangeEvent<HTMLInputElement>
   ) => {
     const file = event.target.files?.[0];
+    setProgressData({
+      progress: 0,
+      msg: "",
+    });
     if (file) {
       const reader = new FileReader();
       reader.onloadend = () => {
@@ -74,7 +74,13 @@ export default function Home(): React.JSX.Element {
           });
           setOcrData(null);
           console.log(data.error);
-          alert("Error Image ");
+          setUploadedImage(null);
+          // alert("Error Image ");
+          alert(data.error);
+          setProgressData({
+            progress: 0,
+            msg: "",
+          });
         }
         if (data?.data && data?.progress === 100) {
           setOcrData(data.data);
@@ -88,6 +94,10 @@ export default function Home(): React.JSX.Element {
           setMachineReportId(data?.data?._id || null);
           console.log(data);
           alert("Image Process Success ");
+          setProgressData({
+            progress: 0,
+            msg: "",
+          });
         }
       });
       setLoading(false);
@@ -151,7 +161,7 @@ export default function Home(): React.JSX.Element {
         </div>
       </div>
 
-      <div className="w-[95vw] flex flex-col md:flex-row items-center justify-center gap-10 py-10 mb-auto transition-all duration-300 ">
+      <div className="w-[95vw] flex flex-col md:flex-row items-center justify-center gap-10 py-10 mb-auto transition-all duration-300  ">
         {/* image preview modal */}
         {!showFeedback && (
           <OcrResults
@@ -178,7 +188,7 @@ export default function Home(): React.JSX.Element {
                   allowFeedback
                     ? "text-base-100 border border-base-100"
                     : "bg-base-100"
-                } relative w-[75vw] lg:w-[60vw] py-8 px-5 rounded-box flex flex-col gap-4`}
+                } relative w-full py-8 px-5 rounded-box flex flex-col gap-4`}
               >
                 <button
                   onClick={() => setShowFeedback(false)}
@@ -210,7 +220,7 @@ export default function Home(): React.JSX.Element {
               </div>
             </div>
 
-            <div className="h-max w-[95vw] flex flex-col md:flex-row items-center justify-center gap-10 py-10 ">
+            <div className="h-max w-[95vw] flex flex-col md:flex-row items-center justify-center gap-10 py-10">
               <OcrResults
                 ocrData={ocrData}
                 uploadedImage={uploadedImage}
