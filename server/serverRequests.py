@@ -273,11 +273,13 @@ class ReportActions:
 
 
 
+            # NOT IMPLEMENTED YET
             # clean_up_duplicate_decimal_points_in_float = machine_report_builder.normalizer.remove_duplicate_decimal_points_in_float(second_stage['tokens'])
             # second_stage['tokens'] = clean_up_duplicate_decimal_points_in_float
             # res['processed_text'] = second_stage
             # if self.TEST_SUITE:
             #     yield f"data: {json.dumps({'stage': 'natural language processing', 'data': second_stage})}\n\n"
+
 
 
             #******************************
@@ -427,7 +429,7 @@ class ReportActions:
                 self.__delete(collection_name=monitoring_name)
                 return True
             else:
-                raise ValueError("Environment must be in local if test flag is enabled.")
+                raise ValueError("Environment must be in local if test suite is enabled.")
         return False
 
 
