@@ -117,9 +117,9 @@ export default function Home(): React.JSX.Element {
   return (
     <main className={` container !justify-start transition-all duration-300 `}>
       {/* theme control */}
-      <div className="absolute top-5 right-5 z-50 shadow-lg border border-base-300 p-2 rounded-full">
+      {/* <div className="absolute top-5 right-5 z-50 shadow-lg border border-base-300 p-2 rounded-full">
         <ThemeControl />
-      </div>
+      </div> */}
 
       <h1
         className={`${
