@@ -63,7 +63,15 @@ class ReportActions:
         res = db.delete(query=query, collection_name=collection_name)
         pass
 
-    def __createMachineReport(self, query: dict, collection_name: str, success: bool = False, default_monitoring_collection_name: str = "Monitoring") -> str:
+    def __createMachineReport(self, 
+                              image_id: str ,
+                              image_path: str, 
+                              query: dict, 
+                              collection_name: str, 
+                              success: bool = False, 
+                              default_monitoring_collection_name: str = "Monitoring", 
+                              image_cname: str = 'Image'
+                              ) -> str:
         # get machine-number
         if not success: 
             if self.created_documents >= self.MAX_DOCUMENTS_TO_BE_STORED and collection_name == default_monitoring_collection_name:
@@ -75,9 +83,33 @@ class ReportActions:
                 raise ValueError('Machine number not found. If error persists, please add a feedback.')
 
         try:
+            import os
+            from bson import Binary
+            import mimetypes
+
+            if not image_path or not image_id:
+                raise ValueError('Could not find image, the machine report will be discarded. If error persists, please add a feedback.')
+
+            with open(image_path, "rb") as f:
+                image_data = f.read()
+
+            content_type = mimetypes.guess_type(image_path)[0] or "application/octet-stream"
+
+            query['image_id'] = image_id
+            query['content_type'] = content_type
+
+            image_doc = {
+                'id': image_id,
+                'data': Binary(image_data)
+            }
+
+            mes_image = db.create(data=image_doc, collection_name=image_cname)
+            if not mes_image:
+                raise RuntimeError('Failed to insert image into database. If error persists, please add a feedback.')
+
             res = db.create(data=query, collection_name=collection_name)
             if not res:
-                raise RuntimeError("Failed to insert machine report into database.")
+                raise RuntimeError("Failed to insert machine report into database. If error persists, please add a feedback.")
             
             mes = f"Machine report created with ID: {res.get('_id')}."
             if collection_name == default_monitoring_collection_name:
@@ -213,8 +245,7 @@ class ReportActions:
         is_local_dev_env = self.__check_if_env_is_in_local()
         if self.TEST_SUITE and self.DELETE_ALL_DATA and is_local_dev_env:
             yield f"data: {{\"devmode\": \"enabled\", \"msg\": \"Deleting all data\"}}\n\n"
-            self.__delete(collection_name=collection_name)
-            self.__delete(collection_name=monitoring_cname)
+            self.deleteAllDataInTest(collection_name='Machine Report', monitoring_name='Monitoring')
         elif not is_local_dev_env and self.TEST_SUITE:
             raise ValueError('Environment must be in local if test suite and delete all data is enabled')
         
@@ -227,6 +258,7 @@ class ReportActions:
         print('Processing image...')
         res = self.__initialize_process_data('process_begins_at')
         res['image'] = image
+        image_id = machine_report_builder.get_image_id()
 
         yield f"data: {{\"progress\": 10, \"msg\": \"Starting image to text...\"}}\n\n"
 
@@ -311,7 +343,13 @@ class ReportActions:
             else:
                 missing_keys = self.__check_missing_keys(list_of_targets, third_stage)
                 if missing_keys:
-                    self.__createMachineReport(query={"missing_keys": missing_keys, **res}, collection_name=monitoring_cname, default_monitoring_collection_name=monitoring_cname)
+                    self.__createMachineReport(
+                        image_path=image,
+                        image_id=image_id, 
+                        query={"missing_keys": missing_keys, **res}, 
+                        collection_name=monitoring_cname, 
+                        default_monitoring_collection_name=monitoring_cname
+                    )
                     raise ValueError(f'Missing required keys: {", ".join(missing_keys)}')
             
 
@@ -333,7 +371,13 @@ class ReportActions:
             
             res['allow-feedback'] = enable_feedback
             if self.ENABLE_FEEDBACK and self.TEST_SUITE:
-                self.__createMachineReport(res, monitoring_cname, default_monitoring_collection_name=monitoring_cname)
+                self.__createMachineReport(
+                    image_path=image, 
+                    image_id=image_id,
+                    query=res, 
+                    collection_name=monitoring_cname, 
+                    default_monitoring_collection_name=monitoring_cname
+                )
 
 
 
@@ -361,7 +405,13 @@ class ReportActions:
 
 
             final['processed_at'] = str(res['process_begins_at'])
-            mes = self.__createMachineReport(final, collection_name, default_monitoring_collection_name=monitoring_cname)
+            mes = self.__createMachineReport(
+                image_path=image,
+                query=final, 
+                image_id=image_id,
+                collection_name=collection_name, 
+                default_monitoring_collection_name=monitoring_cname
+            )
 
             payload = {
                 "progress": 100,
@@ -428,6 +478,7 @@ class ReportActions:
     def deleteAllDataInTest(self, collection_name: str, monitoring_name: str):
         if self.TEST_SUITE and self.DELETE_ALL_DATA:
             if self.__check_if_env_is_in_local():
+                self.__delete(collection_name='Image')
                 self.__delete(collection_name=collection_name)
                 self.__delete(collection_name=monitoring_name)
                 return True

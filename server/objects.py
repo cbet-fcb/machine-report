@@ -118,9 +118,11 @@ class TimerUtils:
         # Return the snapped time in PHT
         return epoch + datetime.timedelta(seconds=snapped_seconds)
 
+# TODO(Fame): Implement blob to numpyArray paired with ImageHandler 
 class MachineReportInputWrapper(BaseModel):
-    image_path : str = Field(default=None, description="supports Path, url")
-    raw_text: str = Field(default=None, descriptions="Raw text") 
+    image_path: Optional[str] = Field(default=None, description="Supports Path or URL")
+    raw_text: Optional[str] = Field(default=None, description="Raw text")
+    blob: Optional[bytes] = Field(default=None, description="Binary data blob, like image file bytes")
 
     def provide_flag(self) -> dict[str, bool]:
         return {k: v is not None for k, v in vars(self).items()}
@@ -184,6 +186,9 @@ class MachineReportBuilder:
             raise ValueError('The captured image shows no text. If error persists, please add a feedback.')
         
         return res
+
+    def get_image_id(self):
+        return self.image_handler.id
 
     def unprocessed_to_processed_text(self, text: str) -> dict:
         """
