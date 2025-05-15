@@ -99,7 +99,7 @@ class ReportActions:
             query['content_type'] = content_type
 
             image_doc = {
-                'id': image_id,
+                '_id': image_id,
                 'data': Binary(image_data)
             }
 
