@@ -53,23 +53,23 @@ class mongoDb:
         
         if AppConfig().getEnvironment() == 'cloudprod':
             raise ValueError("Have not supported cloud production environment")
-            uri = os.getenv('MONGO_URI_ACCOUNTING')
+            # uri = os.getenv('MONGO_URI_ACCOUNTING')
             
-            if uri is None:
-                raise Exception(
-                    'MONGO_URI_ACCOUNTING environment variable is not set')
+            # if uri is None:
+            #     raise Exception(
+            #         'MONGO_URI_ACCOUNTING environment variable is not set')
 
-            self.client = MongoClient(uri,
-                                      server_api=ServerApi('1'),
-                                      tz_aware=True)
-            databaseName = ''
+            # self.client = MongoClient(uri,
+            #                           server_api=ServerApi('1'),
+            #                           tz_aware=True)
+            # databaseName = ''
         if AppConfig().getEnvironment() == 'clouddev':
             raise ValueError("Have not supported cloud development environment")
-            uri = ""
-            self.client = MongoClient(uri,
-                                      server_api=ServerApi('1'),
-                                      tz_aware=True)
-            databaseName = ''
+            # uri = ""
+            # self.client = MongoClient(uri,
+            #                           server_api=ServerApi('1'),
+            #                           tz_aware=True)
+            # databaseName = ''
 
         # testEnvironment is used for automated testing while the actual is used for production / development
         if AppConfig().getEnvironment() == 'localdev':
@@ -187,17 +187,35 @@ class mongoDb:
             'totalPages': totalPages
         }
 
-    def createTTLIndex(self, collection_name, field_name='processedAt', expire_seconds=3600):
+    def createTTLIndex(self, collection_name, field_name='createdAt', expire_seconds=3600):
+        """
+        Create a TTL index on the specified field in the collection.
+        If a conflicting index exists, drop it first.
+        """
         try:
-            result = self.db[collection_name].create_index(
+            coll = self.db[collection_name]
+            existing_indexes = coll.index_information()
+
+            # Look for existing TTL index
+            for index_name, index_info in existing_indexes.items():
+                if index_info.get('key') == [(field_name, 1)]:
+                    if index_info.get('expireAfterSeconds') != expire_seconds:
+                        print(f"[TTL] Dropping outdated TTL index '{index_name}' on {collection_name}...")
+                        coll.drop_index(index_name)
+                    break
+
+            # (Re)create index
+            result = coll.create_index(
                 [(field_name, 1)],
-                expireAfterSeconds=expire_seconds
+                expireAfterSeconds=expire_seconds,
+                name=f"{field_name}_1"
             )
-            print(f"[TTL] {collection_name}.{field_name} will expire in {expire_seconds} seconds.")
+            print(f"[TTL] Index created: {collection_name}.{field_name} with expiration {expire_seconds}s")
             return result
+
         except Exception as e:
             raise RuntimeError(f"[TTL] Failed on {collection_name}.{field_name}: {e}")
-
+            
     def update(self,
                query,
                new_values,

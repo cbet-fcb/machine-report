@@ -7,10 +7,10 @@ import dotenv
 dotenv.load_dotenv()
 
 from mongoDb import TTLIndexMaker
-ttl = TTLIndexMaker() # Time to live index maker for mongoDB
+ttl = TTLIndexMaker() # Time to live index formatter for mongoDB
 
-ttl.add(collection_name='Image', field_name='processed_at', expiration=ttl.WEEK)
-ttl.add(collection_name='Monitoring', field_name='process_begins_at', expiration=ttl.WEEK)
+ttl.add(collection_name='Image', field_name='processed_at', expiration=5 * ttl.MINUTE)
+ttl.add(collection_name='Monitoring', field_name='process_begins_at', expiration=5 * ttl.MINUTE)
 
 db = mongoDb(ttl_index_dict=ttl.make_ttl_index())
 
@@ -105,6 +105,7 @@ class ReportActions:
 
             image_doc = {
                 '_id': image_id,
+                'processed_at': datetime.datetime.now(),
                 'data': Binary(image_data)
             }
 
