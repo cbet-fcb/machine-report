@@ -4,6 +4,7 @@ import os
 
 from objects import Version
 APP_NAME = "IMAGE YIELDS OUTPUT TEXT"
+VERSION = Version(0, 0, 1)
 
 app = Flask(__name__)
 CORS(app)

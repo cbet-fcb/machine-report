@@ -6,11 +6,50 @@ import time
 import os
 # from pubSub import PubSub
 
+class TTLIndexMaker:
+    # Format:
+    # {
+    #   "CollectionName": {"field_name": "processedAt", "expiration_in_seconds": 604800}
+    # }
+    def __init__(self, collection_name: str = None, field_name: str = None, expiration: int = 3600):
+        self.ttl_indexes = {}
+        self.MINUTE = 60 
+        self.HOUR = 60 * self.MINUTE
+        self.DAY = 24 * self.HOUR
+        self.WEEK = 7 * self.DAY
+        self.MONTH = 4 * self.WEEK
+
+        if collection_name and field_name:
+            self.add(collection_name, field_name, expiration)
+
+    def add(self, collection_name: str, field_name: str, expiration: int = 3600):
+        self.ttl_indexes[collection_name] = {
+            "field_name": field_name,
+            "expiration_in_seconds": expiration
+        }
+
+    def make_ttl_index(self) -> dict:
+        """
+        Returns:
+            dict: {
+                "CollectionName": {
+                    "field_name": field_name,
+                    "expiration_in_seconds": expiration
+                }
+            }
+        """
+        return self.ttl_indexes
+
+    def get_field_for_collection(self, collection_name: str) -> str:
+        """
+        Optional: Gets the TTL field for a given collection
+        """
+        return self.ttl_indexes.get(collection_name, {}).get("field_name", None)
+
 
 class mongoDb:
-
-    def __init__(self):
-    
+    def __init__(self, ttl_index_dict: dict = {}):
+        
         
         if AppConfig().getEnvironment() == 'cloudprod':
             raise ValueError("Have not supported cloud production environment")
@@ -44,6 +83,11 @@ class mongoDb:
             databaseName = 'testMachineReport'
 
         self.db = self.client[databaseName]
+
+        for collection_name, config in ttl_index_dict.items():
+            field_name = config.get("field_name", "processed_at")
+            expire_seconds = config.get("expiration_in_seconds", 3600)
+            self.createTTLIndex(collection_name, field_name, expire_seconds)
 
     def ping(self):
         try:
@@ -143,6 +187,16 @@ class mongoDb:
             'totalPages': totalPages
         }
 
+    def createTTLIndex(self, collection_name, field_name='processedAt', expire_seconds=3600):
+        try:
+            result = self.db[collection_name].create_index(
+                [(field_name, 1)],
+                expireAfterSeconds=expire_seconds
+            )
+            print(f"[TTL] {collection_name}.{field_name} will expire in {expire_seconds} seconds.")
+            return result
+        except Exception as e:
+            raise RuntimeError(f"[TTL] Failed on {collection_name}.{field_name}: {e}")
 
     def update(self,
                query,

@@ -6,8 +6,13 @@ import dotenv
 
 dotenv.load_dotenv()
 
-db = mongoDb()
+from mongoDb import TTLIndexMaker
+ttl = TTLIndexMaker() # Time to live index maker for mongoDB
 
+ttl.add(collection_name='Image', field_name='processed_at', expiration=ttl.WEEK)
+ttl.add(collection_name='Monitoring', field_name='process_begins_at', expiration=ttl.WEEK)
+
+db = mongoDb(ttl_index_dict=ttl.make_ttl_index())
 
 class MonitoringActions:
     def __init__(self):
